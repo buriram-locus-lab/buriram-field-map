@@ -1,5 +1,7 @@
-/* Web survey (IOC v1.5). Demo mode saves nothing; live mode posts one JSON record to CONFIG.endpoint after EC approval.
-   Knowledge items 25–28 carry no answer key in this file on purpose: scoring happens only in analysis. */
+/* Web survey (questionnaire v1.8). Demo mode saves nothing; live mode posts one JSON record to CONFIG.endpoint after EC approval.
+   Every form is completed in front of a collector: read aloud (1), keyed from paper (0), or on the respondent's phone from a collector's QR (3).
+   Remote online answering (mode 2) is closed. Knowledge items 29–33 carry no answer key here: scoring happens only in analysis.
+   Items may carry `when` (shown only if the rule holds; hidden answers are dropped) and `auto` (value recorded while hidden). */
 (function () {
   "use strict";
   const CONFIG = window.SURVEY_CONFIG || { live: false, endpoint: "" };
@@ -25,7 +27,7 @@
 
   const st = {
     screen: "intro", part: 0, ans: {}, txt: {}, warned: {},
-    meta: { id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 12), version: R() < .5 ? "A" : "B", order: R() < .5 ? 1 : 2, design: "fixed", mode: null, venue: null, started: null, enumerator: null, collector: null, cdate: null, code: null },
+    meta: { id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 12), version: R() < .5 ? "A" : "B", order: 1, design: "fixed", mode: null, venue: null, started: null, enumerator: null, collector: null, cdate: null, code: null, group: { size: 1, code: "" } },
     cj: { stage: "intro", i: 0, tasks: null, fails: 0, follow: {} },
   };
 
@@ -41,8 +43,7 @@
     const gen = y ? genFromAge(beYear(iso) - y) : "Z";
     let lc = LGU_CODE[st.ans["4"]];
     if (!lc) { const d = st.ans["3"] || {}; const L = S.lgus.filter(l => l.d === d.a && d.t && l.t.includes(d.t)); lc = L.length === 1 ? L[0].code : "U00"; }
-    const online = st.meta.mode === 2;            // mode 3 (QR) uses the collector's own number
-    return `${gen}${lc}-${ddmmOf(iso)}-${online ? "9" : (st.meta.enumerator || 1)}${online ? "01" : "01"}`;
+    return `${gen}${lc}-${ddmmOf(iso)}-${st.meta.enumerator || 1}01`;     // mode 3 (QR) uses the collector's own number
   }
   const refOf = (id = st.meta.id) => String(id).replace(/-/g, "").slice(0, 8).toUpperCase();
   const validPhone = p => /^0\d{8,9}$/.test(String(p || "").replace(/\D/g, ""));
@@ -50,13 +51,35 @@
   /* ---------- helpers for item text ---------- */
   const optText = t => t.replace(/\s*_{2,}\s*/g, "").trim();
   function issueText() {
-    const c = st.ans["16"];
-    if (!c) return "ปัญหาที่ท่านเลือกไว้ในข้อ 16";
-    if (c === 12) return (st.txt["16"] || "").trim() || "เรื่องที่ท่านระบุ";
-    return PARTS[2].items.find(i => i.n === "16").o.find(o => o.c === c).t;
+    const c = st.ans["21"];
+    if (!c) return "ปัญหาที่ท่านเลือกไว้ในข้อ 21";
+    if (c === 12) return (st.txt["21"] || "").trim() || "เรื่องที่ท่านระบุ";
+    return PARTS[2].items.find(i => i.n === "21").o.find(o => o.c === c).t;
   }
-  const otherIssue = () => st.ans["16"] === 4 ? "การดูแลผู้สูงอายุและเบี้ยยังชีพ" : "ถนน ไฟฟ้า น้ำประปา";
-  const fill = s => s.replace(/“เรื่องของท่าน”(\s*ที่เลือกไว้ในข้อ 16)?/g, `“${issueText()}”`).replace(/“เรื่องอื่น”/g, `“${otherIssue()}”`);
+  const otherIssue = () => st.ans["21"] === 4 ? "การดูแลผู้สูงอายุและเบี้ยยังชีพ" : "ถนน ไฟฟ้า น้ำประปา";
+  const fill = s => s.replace(/“เรื่องของท่าน”/g, `“${issueText()}”`).replace(/“เรื่องอื่น”/g, `“${otherIssue()}”`);
+
+  /* ---------- skip rules: an item with `when` is asked only if the rule holds ---------- */
+  const ALL = PARTS.flatMap(p => p.items);
+  const itemOf = n => ALL.find(i => i.n === n);
+  function visible(it) {
+    const w = it.when; if (!w) return true;
+    if (w.mode) return w.mode.includes(st.meta.mode);
+    const v = st.ans[w.n];
+    if (w.not) return v === undefined || !w.not.includes(v);
+    if (w.any) return Array.isArray(v) && v.some(x => w.any.includes(x));
+    return true;
+  }
+  /** Drops answers to items that are now skipped, records `auto` values, and shows or hides their fieldsets. */
+  function applySkips() {
+    for (const it of ALL) {
+      if (!it.when) continue;
+      const on = visible(it), el = $(`#q-${it.n}`);
+      if (!on) { if (it.auto) st.ans[it.n] = it.auto.value; else delete st.ans[it.n]; delete st.txt[it.n]; if (it.parts) it.parts.forEach(p => delete st.ans[p.k]); }
+      else if (it.auto && st.ans[it.n] === it.auto.value) delete st.ans[it.n];
+      if (el && el.hidden === on) { el.hidden = !on; if (on) { const qa = $(".qa", el); if (qa) qa.innerHTML = body(it); } }
+    }
+  }
 
   /* ---------- progress ---------- */
   const STEPS = ["พื้นฐาน", "เศรษฐกิจ", "การเมือง", "ผู้สมัคร", "ความเสี่ยง", "ความเชื่อ", "ชุมชน"];
@@ -67,10 +90,13 @@
   }
 
   /* ---------- item renderers ---------- */
-  function opts(it, kind) {
+  function opts(it, kind, list = it.o) {
     const name = "q_" + it.n;
-    return it.o.map(o => `<label class="opt${o.g ? " g" : ""}"><input type="${kind}" name="${name}" value="${o.c}" ${chk(it, o.c)}><span class="box" aria-hidden="true"></span><span class="ot">${o.g ? `<small>${esc(o.g)}</small>` : ""}${esc(optText(o.t))}</span></label>`).join("");
+    return list.map(o => `<label class="opt"><input type="${kind}" name="${name}" value="${o.c}" ${chk(it, o.c)}><span class="box" aria-hidden="true"></span><span class="ot">${esc(optText(o.t))}${it.skipNote && it.skipNote[o.c] ? ` <small class="skipto">→ ${esc(it.skipNote[o.c])}</small>` : ""}</span></label>`).join("");
   }
+  const optsOf = it => it.swapB && st.meta.version === "B" ? it.o.slice().reverse() : it.o;       // forced choice: order follows set A/B
+  const BEAN = (on, k) => `<svg class="bean${on ? " on" : ""}" viewBox="0 0 24 32" aria-hidden="true"><path d="M12 2c6 0 9 6 8.6 14.5C20.2 25 16.6 30 11.4 30 6 30 3.4 25 3.6 17 3.8 8 6.4 2 12 2z"/><path class="hl" d="M11 7c-2.6 1.6-3.6 5-3.4 8.6" fill="none"/></svg>`;
+  const beanRow = (n, size = "") => `<span class="beanrow ${size}" role="img" aria-label="${n} ใน 10">${Array.from({ length: 10 }, (_, k) => BEAN(k < n, k)).join("")}</span>`;
   function chk(it, c) {
     const v = st.ans[it.n];
     return (Array.isArray(v) ? v.includes(c) : v === c) ? "checked" : "";
@@ -83,15 +109,36 @@
   function body(it) {
     switch (it.type) {
       case "radio":
-        if (it.cards) return `<div class="moneycards">${it.o.map((o, k) => `<label class="mcard"><input type="radio" name="q_${it.n}" value="${o.c}" ${chk(it, o.c)}><span class="mc-ico" aria-hidden="true">${bagIcon(it.n, k)}</span><span class="mc-t">${esc(o.t)}</span></label>`).join("")}</div>`;
-        return `<div class="opts${it.o.length <= 3 && it.o.every(o => o.t.length < 14) ? " row" : ""}">${opts(it, "radio")}</div>${otherBox(it)}`;
+        if (it.cards) return `<div class="moneycards">${it.o.map((o, k) => `<label class="mcard"><input type="radio" name="q_${it.n}" value="${o.c}" ${chk(it, o.c)}><span class="mc-ico" aria-hidden="true">${bagIcon(k)}</span><span class="mc-t">${esc(o.t)}</span>${k ? beanRow(5, "sm") : ""}</label>`).join("")}</div>`;
+        return `<div class="opts${it.o.length <= 3 && it.o.every(o => o.t.length < 14) ? " row" : ""}">${opts(it, "radio", optsOf(it))}</div>${otherBox(it)}`;
       case "scale":
         return `<div class="scale" role="radiogroup">${it.o.map(o => `<label class="sc"><input type="radio" name="q_${it.n}" value="${o.c}" ${chk(it, o.c)}><b class="num">${o.c}</b><span>${esc(o.t)}</span></label>`).join("")}</div>`;
       case "check":
         return `<div class="opts">${opts(it, "checkbox")}</div>`;
       case "year": {
-        const v = st.ans["1"] || "";
-        return `<div class="inrow"><span class="pre">พ.ศ.</span><input class="txt short num" type="number" inputmode="numeric" name="q_1" min="2460" max="2569" placeholder="เช่น 2530" value="${v}"></div><p class="live small muted" id="agefb">${ageMsg(v)}</p>`;
+        const v = st.ans["1"] || "", m = st.ans["1m"];
+        return `<div class="inrow"><span class="pre">พ.ศ.</span><input class="txt short num" type="number" inputmode="numeric" name="q_1" min="2460" max="2569" placeholder="เช่น 2530" value="${v}"></div><p class="live small muted" id="agefb">${ageMsg(v)}</p>
+          <div id="monthbox" ${+v === 2551 ? "" : "hidden"}><p class="sub">ท่านเกิดเดือนใดของปี 2551</p><div class="opts row">${MONTHS.map(([c, t]) => `<label class="opt"><input type="radio" name="q_1m" value="${c}" ${m === c ? "checked" : ""}><span class="box" aria-hidden="true"></span><span class="ot">${t}</span></label>`).join("")}</div></div>`;
+      }
+      case "income": {
+        const v = st.ans["12"], b = st.ans["12b"];
+        return `<div class="inrow"><input class="txt short num" type="number" inputmode="numeric" name="q_12" min="${it.min}" max="${it.max}" value="${typeof v === "number" ? v : ""}" ${b != null ? "disabled" : ""}><span class="post">${it.unitLabel}</span></div>
+          <details class="brk" ${b != null ? "open" : ""}><summary>ไม่ทราบตัวเลข เลือกเป็นช่วง (บาทต่อเดือน)</summary><div class="opts slim">${it.o.map(o => `<label class="opt"><input type="radio" name="q_12b" value="${o.c}" ${b === o.c ? "checked" : ""}><span class="box" aria-hidden="true"></span><span class="ot">${esc(o.t)}</span></label>`).join("")}
+          <label class="opt"><input type="radio" name="q_12b" value="10" ${b === 10 ? "checked" : ""}><span class="box" aria-hidden="true"></span><span class="ot">ไม่ประสงค์ตอบ</span></label></div>
+          ${b != null ? `<button type="button" class="btn ghost small" id="brkclear">ใส่เป็นตัวเลขแทน</button>` : ""}</details>`;
+      }
+      case "conf": {
+        const v = st.ans[it.n], n = v == null ? -1 : v / 10;
+        return `<div class="beans" role="radiogroup" aria-label="ความเชื่อมั่น 0 ถึง 100">
+          <label class="bz${v === 0 ? " on" : ""}"><input type="radio" name="q_${it.n}" value="0" ${v === 0 ? "checked" : ""}><b class="num">0</b><span>ไม่เชื่อมั่นเลย</span></label>
+          <span class="bwrap">${Array.from({ length: 10 }, (_, k) => `<label class="bk${k < n ? " on" : ""}" title="${(k + 1) * 10}"><input type="radio" name="q_${it.n}" value="${(k + 1) * 10}" ${v === (k + 1) * 10 ? "checked" : ""}>${BEAN(k < n)}<span class="sr">${(k + 1) * 10}</span></label>`).join("")}</span></div>
+          <p class="beanval live">${v == null ? `<span class="muted">กดเมล็ดถั่วตามความเชื่อมั่น (ยังไม่ได้เลือก)</span>` : `<b class="num">${n}</b> เมล็ด · เชื่อมั่น <b class="num">ร้อยละ ${v}</b>`}</p>`;
+      }
+      case "enum": {
+        return it.parts.filter(p => !p.group || st.meta.group.size > 1).map(p => `<p class="sub">${esc(p.t)}</p><div class="opts row">${p.o.map(o => {
+          const v = st.ans[p.k], on = Array.isArray(v) ? v.includes(o.c) : v === o.c;
+          return `<label class="opt"><input type="${p.type === "check" ? "checkbox" : "radio"}" name="q_${p.k}" value="${o.c}" ${on ? "checked" : ""}><span class="box" aria-hidden="true"></span><span class="ot">${esc(o.t)}</span></label>`; }).join("")}</div>`).join("") +
+          `<label class="fld"><span>จ. บันทึกอื่น ๆ <em>(ไม่บังคับ)</em></span><input class="txt" data-txt="64" value="${esc(st.txt["64"] || "")}"></label>`;
       }
       case "num": {
         const v = st.ans[it.n];
@@ -121,14 +168,14 @@
           ${d.t && L.length > 1 ? `<p class="small muted">ตำบล${d.t}มี 2 อปท. ดูแลคนละพื้นที่ เลือกตามที่ท่านมีสิทธิเลือกตั้ง</p>` : ""}`;
       }
       case "occ": {
-        const main = it.o.filter(o => !o.g), not = it.o.filter(o => o.g);
-        return `<label class="fld"><span>ชื่ออาชีพหรือตำแหน่ง และงานที่ทำจริง <em>(ไม่บังคับ)</em></span><input class="txt" data-txt="7ก" value="${esc(st.txt["7ก"] || "")}" placeholder="เช่น ทำนา ขายของในตลาด"></label>
-          <p class="sub">หมวดอาชีพ</p><div class="opts">${main.map(o => `<label class="opt"><input type="radio" name="q_7ก" value="${o.c}" ${chk(it, o.c)}><span class="box" aria-hidden="true"></span><span class="ot">${esc(o.t)}</span></label>`).join("")}</div>
-          <p class="sub">ไม่ได้ทำงาน</p><div class="opts">${not.map(o => `<label class="opt"><input type="radio" name="q_7ก" value="${o.c}" ${chk(it, o.c)}><span class="box" aria-hidden="true"></span><span class="ot">${esc(o.t)}</span></label>`).join("")}</div>`;
+        const main = it.o.filter(o => !o.g), not = it.o.filter(o => o.g), sec = st.ans["8b"];
+        return `<p class="sub">ทำงาน</p><div class="opts">${opts(it, "radio", main)}</div>${otherBox(it)}
+          <p class="sub">ไม่ได้ทำงาน</p><div class="opts">${opts(it, "radio", not)}</div>
+          <label class="fld"><span>อาชีพรอง <em>(ถ้ามี)</em></span><select name="q_8b"><option value="">ไม่มีอาชีพรอง</option>${main.filter(o => o.c !== 12).map(o => `<option value="${o.c}" ${sec === o.c ? "selected" : ""}>${esc(o.t)}</option>`).join("")}</select></label>`;
       }
       case "phase2": {
-        const v = st.ans["75"], c = st.contact || {};
-        return `<div class="opts row">${it.o.map(o => `<label class="opt"><input type="radio" name="q_75" value="${o.c}" ${v === o.c ? "checked" : ""}><span class="box" aria-hidden="true"></span><span class="ot">${o.t}</span></label>`).join("")}</div>
+        const v = st.ans["63"], c = st.contact || {};
+        return `<div class="opts row">${it.o.map(o => `<label class="opt"><input type="radio" name="q_63" value="${o.c}" ${v === o.c ? "checked" : ""}><span class="box" aria-hidden="true"></span><span class="ot">${o.t}</span></label>`).join("")}</div>
           <div class="grid2" id="phonebox" ${v === 1 ? "" : "hidden"}>
             <label class="fld"><span>เบอร์โทรศัพท์</span><input class="txt num" type="tel" inputmode="tel" autocomplete="off" name="ph" value="${esc(c.phone || "")}" placeholder="08x-xxx-xxxx"></label>
             <label class="fld"><span>ช่วงเวลาที่สะดวกให้โทร <em>(ไม่บังคับ)</em></span><select name="pht"><option value="">ไม่ระบุ</option>${["เช้า", "บ่าย", "เย็น", "เสาร์–อาทิตย์"].map(t => `<option ${c.time === t ? "selected" : ""}>${t}</option>`).join("")}</select></label>
@@ -141,38 +188,40 @@
     }
     return "";
   }
-  function bagIcon(n, k) {
-    if (n === "41") return k === 0
+  function bagIcon(k) {
+    return k === 0
       ? `<svg viewBox="0 0 48 48"><path d="M17 12 L31 12 L27 18 L21 18 Z" fill="currentColor" opacity=".6"/><path d="M21 18 C9 24 8 42 24 42 C40 42 39 24 27 18 Z" fill="currentColor"/><text x="24" y="35" text-anchor="middle" font-size="10" fill="var(--surface)" font-family="IBM Plex Mono">100%</text></svg>`
       : `<svg viewBox="0 0 48 48"><path d="M17 12 L31 12 L27 18 L21 18 Z" fill="currentColor" opacity=".6"/><path d="M21 18 C9 24 8 42 24 42 C40 42 39 24 27 18 Z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-dasharray="5 4"/><text x="24" y="35" text-anchor="middle" font-size="10" fill="currentColor" font-family="IBM Plex Mono">50%</text></svg>`;
-    return k === 0
-      ? `<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="16" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M24 14 V24 L31 28" stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg>`
-      : `<svg viewBox="0 0 48 48"><rect x="9" y="12" width="30" height="27" rx="4" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M9 20 H39 M17 8 V15 M31 8 V15" stroke="currentColor" stroke-width="2.4"/><text x="24" y="34" text-anchor="middle" font-size="10" fill="currentColor" font-family="IBM Plex Mono">+1y</text></svg>`;
   }
+  const MONTHS = [[1, "มกราคม"], [2, "1–8 กุมภาพันธ์"], [3, "9 กุมภาพันธ์ หรือหลังจากนั้น"]];
+  const lateBorn = () => +st.ans["1"] === 2551 && st.ans["1m"] === 3;
   function ageMsg(v) {
     v = +v;
     if (!v) return "";
     if (v > 2551) return `<span class="bad">ยังไม่มีสิทธิเลือกตั้งในวันที่ 8 ก.พ. 2569 (ไม่อยู่ในเกณฑ์)</span>`;
     if (v < 2440) return `<span class="bad">ตรวจปีเกิดอีกครั้ง (ใส่เป็นปี พ.ศ.)</span>`;
-    return `อายุประมาณ <b class="num">${2569 - v}</b> ปี${v === 2551 ? " · ต้องเกิดในหรือก่อน 8 ก.พ. 2551" : ""}`;
+    return `อายุประมาณ <b class="num">${2569 - v}</b> ปี${v === 2551 ? " · ต้องเกิดในหรือก่อน 8 ก.พ. 2551 เลือกเดือนเกิดด้านล่าง" : ""}`;
   }
 
   function itemHTML(it, prev) {
     let pre = "";
     if (it.know && (!prev || !prev.know)) pre = `<div class="notice acc know"><b>${esc(it.lead.replace(/\s*\(.*\)$/, ""))}</b><br><span class="small">บางข้อถูก บางข้อไม่ถูก ถ้าไม่แน่ใจตอบว่าไม่ทราบได้ ไม่ใช่การสอบ และระบบจะไม่แสดงเฉลย</span></div>`;
-    if (PARTS[5].items[0] === it) pre = `<div class="notice acc"><b>ไม่มีคำตอบถูกหรือผิด</b><br><span class="small">ขอให้บอกว่าเห็นด้วยหรือไม่เห็นด้วยกับแต่ละข้อมากน้อยเพียงใด ไม่มีตัวเลือกตรงกลาง</span></div>`;
-    const badge = it.ecOnly ? `<span class="chip warn"><i></i>ใช้ได้เมื่อ EC อนุมัติแล้วเท่านั้น</span>` : "";
+    else if (it.lead && !it.know && (!prev || prev.lead !== it.lead)) pre = `<div class="notice acc know"><b>${esc(it.lead)}</b><br><span class="small">${it.o === undefined ? "" : esc(it.o.map(o => o.c + " " + o.t).join(" · "))}</span></div>`;
+    if (PARTS[5].items[0] === it) pre = `<div class="notice acc"><b>ไม่มีคำตอบถูกหรือผิด</b><br><span class="small">ขอให้บอกก่อนว่าเห็นด้วยหรือไม่เห็นด้วย แล้วบอกว่าเล็กน้อย ปานกลาง หรือมาก ไม่มีตัวเลือกตรงกลาง</span></div>`;
     const hint = it.hint ? `<p class="hint">${esc(it.hint)}</p>` : "";
     const q = esc(it.q).replace(/\(ตอบได้มากกว่า 1 ข้อ\)/, '<span class="tag">ตอบได้หลายข้อ</span>').replace(/\(เลือก 1 ข้อ\)/, '<span class="tag">เลือก 1 ข้อ</span>');
-    return `${pre}<fieldset class="q t-${it.type}" id="q-${it.n}" data-n="${it.n}"><legend class="qh"><span class="qn num">${it.n}</span><span class="qt">${q} ${badge}</span></legend>${hint}<div class="qa">${body(it)}</div></fieldset>`;
+    return `${pre}<fieldset class="q t-${it.type}" id="q-${it.n}" data-n="${it.n}" ${visible(it) ? "" : "hidden"}><legend class="qh"><span class="qn num">${it.n}</span><span class="qt">${q}</span></legend>${hint}<div class="qa">${body(it)}</div></fieldset>`;
   }
 
   /* ---------- validation ---------- */
   function answered(it) {
     const v = st.ans[it.n];
+    if (!visible(it)) return true;                                   // skipped by a rule
     if (it.type === "residence") return !!(v && v.a && v.t);
     if (it.type === "check") return Array.isArray(v) && v.length > 0;
-    if (it.type === "year") return !!v;
+    if (it.type === "year") return !!v && (+v !== 2551 || !!st.ans["1m"]);
+    if (it.type === "income") return typeof v === "number" || st.ans["12b"] != null;
+    if (it.type === "enum") return it.parts.every(p => (p.group && st.meta.group.size < 2) || (Array.isArray(st.ans[p.k]) ? st.ans[p.k].length : st.ans[p.k] != null));
     if (it.type === "phase2") return v === 2 || (v === 1 && validPhone(st.contact && st.contact.phone));
     return v !== undefined && v !== null && v !== "";
   }
@@ -193,7 +242,7 @@
       <h2>ก่อนเริ่ม</h2>
       <div class="infogrid">
         <div><b>งานวิจัยนี้ศึกษาอะไร</b><p>วิธีที่ผู้มีสิทธิเลือกตั้งในบุรีรัมย์ชั่งน้ำหนักระหว่างผู้สมัครที่ช่วยเหลือเป็นรายครัวเรือน กับผู้สมัครที่เสนอนโยบาย และความเชื่อของแต่ละคนว่าชีวิตถูกกำหนดโดยอะไร</p></div>
-        <div><b>ท่านจะต้องทำอะไร</b><p>ตอบคำถาม 7 ส่วน รวมการเลือกผู้สมัครสมมติ 7 คู่ ใช้เวลาประมาณ 30 นาที</p></div>
+        <div><b>ท่านจะต้องทำอะไร</b><p>ตอบคำถาม 7 ส่วน รวมการเลือกผู้สมัครสมมติ 5 คู่ ใช้เวลาประมาณ 25–30 นาที</p></div>
         <div><b>สิทธิของท่าน</b><p>ไม่ต้องบอกชื่อ ข้ามข้อที่ไม่สบายใจได้ และหยุดได้ทุกเมื่อ แบบสอบถามนี้ไม่ถามว่าท่านเลือกผู้สมัครหรือพรรคใด</p></div>
         <div><b>ข้อมูลของท่าน</b><p>ใช้วิเคราะห์ในภาพรวมเท่านั้น ไม่นำเสนอรายบุคคลหรือรายหมู่บ้าน</p></div>
       </div>
@@ -201,22 +250,26 @@
       ${INV ? `<div class="notice acc" id="invbox">กำลังตรวจ QR…</div>` : ""}
       <div class="admin" ${INV ? `style="display:none"` : ""}>
         <fieldset class="q"><legend class="qh"><span class="qt">วิธีตอบ</span></legend><div class="opts row">
-          ${[[1, "ผู้เก็บข้อมูลอ่านให้ฟัง"], [0, "คีย์จากฟอร์มกระดาษ (ผู้ตอบกรอกเอง)"], [3, "ให้ผู้ตอบสแกน QR ทำในโทรศัพท์ตัวเอง"], [2, "ตอบเองออนไลน์"]].map(([c, t]) => `<label class="opt"><input type="radio" name="mode" value="${c}" ${st.meta.mode === c ? "checked" : ""}><span class="box"></span><span class="ot">${t}</span></label>`).join("")}</div></fieldset>
-        <fieldset class="q" id="venue-q" ${st.meta.mode === 2 ? "hidden" : ""}><legend class="qh"><span class="qt">สถานที่พบผู้ตอบ <em class="muted">(ผู้เก็บข้อมูลเลือก)</em></span></legend><div class="opts row">
+          ${[[1, "ผู้เก็บข้อมูลอ่านให้ฟัง"], [0, "คีย์จากฟอร์มกระดาษ (ผู้ตอบกรอกเอง)"], [3, "ให้ผู้ตอบสแกน QR ทำในโทรศัพท์ตัวเอง ต่อหน้าผู้เก็บข้อมูล"]].map(([c, t]) => `<label class="opt"><input type="radio" name="mode" value="${c}" ${st.meta.mode === c ? "checked" : ""}><span class="box"></span><span class="ot">${t}</span></label>`).join("")}</div></fieldset>
+        <fieldset class="q" id="venue-q"><legend class="qh"><span class="qt">สถานที่พบผู้ตอบ <em class="muted">(ผู้เก็บข้อมูลเลือก)</em></span></legend><div class="opts row">
           ${[[1, "ตลาดหรือจุดที่คนพลุกพล่าน"], [2, "จุดรวมตัวของชุมชน (สภากาแฟ)"], [3, "เยี่ยมครัวเรือน"]].map(([c, t]) => `<label class="opt"><input type="radio" name="venue" value="${c}" ${st.meta.venue === c ? "checked" : ""}><span class="box"></span><span class="ot">${t}</span></label>`).join("")}</div></fieldset>
 
-        <fieldset class="q" id="enum-q" ${st.meta.mode === 2 || st.meta.mode == null ? "hidden" : ""}><legend class="qh"><span class="qt">ผู้เก็บข้อมูล <em class="muted">(ต้องเข้าสู่ระบบ ระบบออกรหัสผู้ตอบให้ตอนส่ง)</em></span></legend>
+        <fieldset class="q" id="group-q" ${st.meta.mode === 0 || st.meta.mode === 1 ? "" : "hidden"}><legend class="qh"><span class="qt">ตอบพร้อมกันกี่คน <em class="muted">(ไม่เกิน 3 คน ห้ามคุยกันระหว่างตอบ)</em></span></legend>
+          <div class="opts row">${[1, 2, 3].map(c => `<label class="opt"><input type="radio" name="gsize" value="${c}" ${st.meta.group.size === c ? "checked" : ""}><span class="box"></span><span class="ot">${c === 1 ? "คนเดียว" : c + " คน"}</span></label>`).join("")}</div>
+          <label class="fld" id="gcode" style="max-width:220px" ${st.meta.group.size > 1 ? "" : "hidden"}><span>รหัสกลุ่ม <em>(ใช้รหัสเดียวกันทุกคนในกลุ่ม)</em></span><input class="txt" name="gcode" value="${esc(st.meta.group.code)}" placeholder="เช่น G1"></label></fieldset>
+        <fieldset class="q" id="enum-q" ${st.meta.mode == null ? "hidden" : ""}><legend class="qh"><span class="qt">ผู้เก็บข้อมูล <em class="muted">(ต้องเข้าสู่ระบบ ระบบออกรหัสผู้ตอบให้ตอนส่ง)</em></span></legend>
           <div id="who"></div>
         </fieldset>
       </div>
-      ${!INV && !DEMO && !TESTRUN && store.get("done", false) ? `<div class="notice">เครื่องนี้เคยส่งคำตอบแบบตอบเองออนไลน์ไปแล้ว ถ้าเป็นผู้ตอบคนใหม่ ให้ผู้เก็บข้อมูลเลือก “ผู้เก็บข้อมูลอ่านให้ฟัง” หรือใช้อีกเครื่อง</div>` : ""}
       <p class="consent" id="consent"></p>
       <div class="nav"><span></span><button class="btn primary" id="start">เริ่มตอบ</button></div>
     </section>`;
     app.onchange = e => {
       const t = e.target;
-      if (t.name === "mode") { st.meta.mode = +t.value; if (st.meta.mode === 2) st.meta.venue = 4; else if (st.meta.venue === 4) st.meta.venue = null; modeUI(); renderWho(); }
+      if (t.name === "mode") { st.meta.mode = +t.value; modeUI(); renderWho(); }
       if (t.name === "venue") st.meta.venue = +t.value;
+      if (t.name === "gsize") { st.meta.group.size = +t.value; $("#gcode").hidden = st.meta.group.size < 2; }
+      if (t.name === "gcode") st.meta.group.code = t.value.trim().slice(0, 12);
       if (t.name === "cdate") st.meta.cdate = t.value;
     };
     modeUI(); renderWho();
@@ -228,20 +281,21 @@
         st.meta.mode = 3; st.meta.venue = invInfo.venue || null; st.meta.enumerator = invInfo.enumerator; st.meta.cdate = todayISO();
         st.meta.started = new Date().toISOString(); st.t0 = performance.now(); st.screen = "part"; st.part = 0; return render();
       }
-      if (st.meta.mode == null) st.meta.mode = 2, st.meta.venue = 4;
+      if (st.meta.mode == null) { toast("เลือกวิธีตอบก่อนเริ่ม"); return; }
       if (st.meta.mode === 3) {                         // collector hands a QR; no form starts on this device
         const se = Auth.get();
         if (!se || se.user.mustChange) { toast("เข้าสู่ระบบก่อนสร้าง QR"); $("#who").scrollIntoView({ block: "center" }); return; }
         if (!se.user.enumerator) { toast("บัญชีนี้ยังไม่มีเลขผู้เก็บข้อมูล จึงสร้าง QR ไม่ได้"); return; }
         return showQR();
       }
-      if (st.meta.mode !== 2) {
+      {
         const se = Auth.get();
         if (!se || se.user.mustChange) { toast("ผู้เก็บข้อมูลต้องเข้าสู่ระบบก่อนเริ่ม"); $("#who").scrollIntoView({ block: "center" }); return; }
         if (!se.user.enumerator) { toast("บัญชีนี้ยังไม่มีเลขผู้เก็บข้อมูล ติดต่อผู้วิจัย"); return; }
         if (st.meta.venue == null) { toast("เลือกสถานที่พบผู้ตอบก่อนเริ่ม"); return; }
+        if (st.meta.group.size > 1 && !st.meta.group.code) { toast("ใส่รหัสกลุ่มก่อนเริ่ม"); $("#gcode input").focus(); return; }
         st.meta.enumerator = se.user.enumerator; st.meta.collector = se.user.username; st.meta.cdate = st.meta.cdate || todayISO();
-      } else st.meta.cdate = todayISO();
+      }
       st.meta.started = new Date().toISOString(); st.t0 = performance.now();
       st.screen = "part"; st.part = 0; render();
     };
@@ -250,11 +304,11 @@
   let whoSub = false;
   /* what the intro shows for each way of answering */
   function modeUI() {
-    const m = st.meta.mode, v = $("#venue-q"), e = $("#enum-q"), go = $("#start"), c = $("#consent");
-    if (v) v.hidden = m === 2; if (e) e.hidden = m === 2 || m == null;
+    const m = st.meta.mode, e = $("#enum-q"), g = $("#group-q"), go = $("#start"), c = $("#consent");
+    if (e) e.hidden = m == null; if (g) g.hidden = !(m === 0 || m === 1);
     if (go && !INV) go.textContent = m === 3 ? "สร้าง QR ให้ผู้ตอบ" : "เริ่มตอบ";
     if (c) c.innerHTML = m === 3 && !INV ? "ให้ QR หลังอธิบายโครงการและผู้ตอบยินยอมแล้วเท่านั้น ผู้ตอบสแกนแล้วทำเองในโทรศัพท์ของเขา คำตอบนับเป็นชุดของคุณ หนึ่ง QR ใช้ได้ 1 คน ภายใน 7 วัน"
-      : "การกด “เริ่มตอบ” ถือว่าท่านยินยอมเข้าร่วมการวิจัย (ความยินยอมโดยการกระทำ)";
+      : "เริ่มได้เมื่อผู้ตอบได้รับเอกสารชี้แจงและยินยอมเข้าร่วมแล้วเท่านั้น";
   }
 
   async function checkInvite() {
@@ -267,7 +321,7 @@
       if (!j.ok) { box.className = "notice"; box.innerHTML = `<b>QR นี้ใช้ไม่ได้</b> ${esc(j.error || "")}`; go.disabled = true; return; }
       invInfo = { enumerator: j.enumerator, venue: j.venue };
     }
-    box.innerHTML = `<b>แบบสอบถามนี้ส่งมาจากผู้เก็บข้อมูลเลข ${invInfo.enumerator}</b><br><span class="small">ท่านตอบบนโทรศัพท์ของท่านเองได้เลย ไม่ต้องเข้าสู่ระบบ ใช้เวลาราว 30 นาที ปิดแล้วกลับมาตอบต่อจาก QR เดิมได้ภายใน 7 วัน (เริ่มใหม่ตั้งแต่ต้น)</span>${INV === "demo" || DEMO ? `<br><span class="small">โหมดตัวอย่าง: QR สาธิต ไม่บันทึกคำตอบ</span>` : ""}`;
+    box.innerHTML = `<b>แบบสอบถามนี้ส่งมาจากผู้เก็บข้อมูลเลข ${invInfo.enumerator}</b><br><span class="small">ท่านตอบบนโทรศัพท์ของท่านเองได้เลย ไม่ต้องเข้าสู่ระบบ ใช้เวลาราว 25–30 นาที ปิดแล้วกลับมาตอบต่อจาก QR เดิมได้ภายใน 7 วัน (เริ่มใหม่ตั้งแต่ต้น)</span>${INV === "demo" || DEMO ? `<br><span class="small">โหมดตัวอย่าง: QR สาธิต ไม่บันทึกคำตอบ</span>` : ""}`;
     chips();
   }
 
@@ -308,7 +362,7 @@
 
   /* ---------- enumerator sign-in inside the intro ---------- */
   function renderWho() {
-    const el = $("#who"); if (!el || st.meta.mode === 2 || st.meta.mode == null) return;
+    const el = $("#who"); if (!el || st.meta.mode == null) return;
     const se = Auth.get();
     if (!se || se.user.mustChange) {
       Auth.form(el, { lead: "ใช้ชื่อผู้ใช้ที่ผู้วิจัยสร้างให้ เลขผู้เก็บข้อมูลผูกกับบัญชี ไม่ต้องเลือกเอง", onDone: () => { renderWho(); chips(); flush(); },
@@ -331,7 +385,7 @@
 
   function partHead(i, extra = "") {
     const P = PARTS[i];
-    const m = P.title.replace("(ข้อ 15–28)", "(ข้อ 16–28)").match(/^ส่วนที่ (\d) (.+?) \((ข้อ .+)\)$/);
+    const m = P.title.match(/^ส่วนที่ (\d) (.+?) \((ข้อ .+)\)$/);
     const bar = st.meta.mode === 0 || st.meta.mode === 1 ? `<p class="codebar">เลขอ้างอิงฟอร์ม <b class="num">${refOf()}</b><span>รหัสผู้ตอบจะออกหลังส่ง</span></p>` : "";
     return `${progress()}<header class="phead">${bar}<p class="eyebrow">ส่วนที่ ${m[1]} · ${m[3]}</p><h2>${m[2]}</h2>${extra}</header>`;
   }
@@ -340,7 +394,7 @@
     const P = PARTS[st.part];
     const intro = st.part === 1 ? `<p class="lead">“ครัวเรือน” ในส่วนนี้ หมายถึงคนที่อาศัยและกินอยู่ร่วมกับท่านเป็นประจำ ถ้าท่านไปทำงานหรือเรียนที่อื่น ให้นึกถึงครัวเรือนที่บ้านในพื้นที่นี้</p>` : st.part === 6 ? `<p class="lead">ส่วนสุดท้ายเป็นคำถามเกี่ยวกับชุมชนของท่านโดยทั่วไป ไม่ใช่เรื่องของตัวท่าน ไม่ต้องระบุชื่อบุคคลใด</p>` : st.part === 4 ? `<p class="lead">ส่วนนี้อยู่หลังการเลือกผู้สมัครโดยเจตนา เพื่อไม่ให้คำถามเรื่องความเสี่ยงชี้นำการเลือก</p>` : "";
     let html = partHead(st.part, intro) + `<form class="panel" novalidate>`;
-    const items = P.items.filter(it => !it.ecOnly || DEMO || CONFIG.splitTicket);   // item 43 only after EC approves it
+    const items = P.items;
     items.forEach((it, k) => html += itemHTML(it, items[k - 1]));
     html += `<div class="nav">${navBtns()}</div></form>`;
     app.innerHTML = html;
@@ -354,6 +408,7 @@
   function bindForm(items) {
     const form = $("form", app);
     form.onchange = form.oninput = e => onInput(e, items);
+    form.onclick = e => { if (e.target.id === "brkclear") { delete st.ans["12b"]; refresh("12"); const i = $('input[name="q_12"]'); if (i) i.focus(); } };
     $("#back").onclick = goBack;
     $("#next").onclick = () => next(items);
     const af = $("#autofill"); if (af) af.onclick = () => { autofill(items); st.part === 3 ? renderConjoint() : renderPart(); };
@@ -364,13 +419,15 @@
     if (t.name === "res_a") { st.ans["3"] = { a: t.value }; delete st.ans["4"]; refresh("3"); refresh("4"); return; }
     if (t.name === "res_t") { st.ans["3"].t = t.value; delete st.ans["4"]; refresh("4"); return; }
     if (t.name === "res_m") { st.ans["3"].m = t.value; return; }
-    if (t.name === "ph" || t.name === "pht") { st.contact = st.contact || {}; st.contact[t.name === "ph" ? "phone" : "time"] = t.value; clearFlag("75"); return; }
-    if (t.name.startsWith("oo_")) {
-      const n = t.name.slice(3);
-      $$(`input[name="oo_${n}"]`).forEach(x => { if (x !== t) x.checked = false; });
-      st.ans[n] = t.checked ? t.value : undefined;
-      const inp = $(`input[name="q_${n}"]`); inp.disabled = t.checked; if (t.checked) inp.value = "";
-      clearFlag(n); return;
+    if (t.name === "ph" || t.name === "pht") { st.contact = st.contact || {}; st.contact[t.name === "ph" ? "phone" : "time"] = t.value; clearFlag("63"); return; }
+    if (t.name === "q_1m") { st.ans["1m"] = +t.value; clearFlag("1"); return; }
+    if (t.name === "q_8b") { st.ans["8b"] = t.value === "" ? undefined : +t.value; return; }
+    if (t.name === "q_12b") { st.ans["12b"] = +t.value; delete st.ans["12"]; refresh("12"); return; }
+    if (/^q_64[a-d]$/.test(t.name)) {
+      const k = t.name.slice(2), p = itemOf("64").parts.find(x => x.k === k), c = +t.value;
+      if (p.type === "check") { let v = (st.ans[k] || []).filter(x => x !== c); if (t.checked) v = p.excl.includes(c) ? [c] : v.filter(x => !p.excl.includes(x)).concat(c); st.ans[k] = v.sort((a, b) => a - b); $$(`input[name="${t.name}"]`).forEach(x => x.checked = st.ans[k].includes(+x.value)); }
+      else st.ans[k] = c;
+      clearFlag("64"); return;
     }
     if (!t.name || !t.name.startsWith("q_")) return;
     const n = t.name.slice(2), it = items.find(i => i.n === n);
@@ -386,29 +443,29 @@
       $$(`input[name="q_${n}"]`).forEach(x => x.checked = st.ans[n].includes(+x.value));
     } else if (it.type === "year" || it.type === "num") {
       st.ans[n] = t.value === "" ? undefined : +t.value;
-      if (it.type === "year") $("#agefb").innerHTML = ageMsg(t.value);
+      if (it.type === "year") { $("#agefb").innerHTML = ageMsg(t.value); $("#monthbox").hidden = +t.value !== 2551; if (+t.value !== 2551) delete st.ans["1m"]; }
+    } else if (it.type === "income") {
+      st.ans["12"] = t.value === "" ? undefined : +t.value;
+    } else if (it.type === "conf") {
+      st.ans[n] = +t.value; const qa = $(`#q-${n} .qa`); qa.innerHTML = body(it); const inp = $(`input[value="${t.value}"]`, qa); if (inp) inp.focus();
     } else if (it.type === "lgu") {
       st.ans[n] = t.value;
     } else {
       st.ans[n] = +t.value;
-      if (n === "7ก") {                           // not working (10–13) ⇒ employment status 8
-        const notWorking = st.ans[n] >= 10;
-        if (notWorking) st.ans["7ข"] = 8; else if (st.ans["7ข"] === 8) delete st.ans["7ข"];
-        $$('input[name="q_7ข"]').forEach(x => x.checked = st.ans["7ข"] === +x.value); clearFlag("7ข");
-      }
       if (it.type === "phase2") { const box = $("#phonebox"); box.hidden = st.ans[n] !== 1; if (st.ans[n] !== 1) st.contact = null; else if (e.type === "change") $('input[name="ph"]').focus(); }
-      if (it.other) { const o = $(`[data-txt="${n}"]`); o.hidden = st.ans[n] !== it.other; if (!o.hidden && e.type === "change") o.focus(); }
+      if (it.other) { const o = $(`[data-txt="${n}"]`); o.hidden = st.ans[n] !== it.other; if (o.hidden) delete st.txt[n]; else if (e.type === "change") o.focus(); }
     }
     clearFlag(n);
+    applySkips();
   }
   function refresh(n) {
-    const it = PARTS.flatMap(p => p.items).find(i => i.n === n);
+    const it = itemOf(n);
     const el = $(`#q-${n} .qa`); if (el) el.innerHTML = body(it);
     clearFlag(n);
   }
   const clearFlag = n => { const q = $(`#q-${n}`); if (q) q.classList.remove("miss"); };
 
-  const HARD = ["1", "3", "4", "5", "5ก"];          // needed for eligibility and the respondent code: cannot be skipped
+  const HARD = ["1", "3", "4", "5", "6"];          // needed for eligibility and the respondent code: cannot be skipped
   const yearOK = v => v >= 2440 && v <= 2569;
   function next(items) {
     const hard = items.filter(it => HARD.includes(it.n) && (!answered(it) || (it.n === "1" && !yearOK(st.ans["1"]))));
@@ -421,7 +478,7 @@
     }
     const miss = items.filter(it => !answered(it));
     $$(".q.miss").forEach(q => q.classList.remove("miss"));
-    const key = st.screen + st.part + (st.part === 3 ? st.cj.stage : "");
+    const key = st.screen + st.part + (st.part === 3 ? st.cj.stage : "");     // warn once per screen
     if (miss.length && !st.warned[key]) {
       miss.forEach(it => { const q = $(`#q-${it.n}`); if (q) q.classList.add("miss"); });
       const first = $(`#q-${miss[0].n}`);
@@ -434,11 +491,11 @@
   }
   function advance() {
     if (st.screen === "part" && st.part === 0) {
-      const y = st.ans["1"], d = st.ans["3"];
-      const out = (y && y > 2551) || st.ans["5"] === 3 || st.ans["5ก"] === 2;
+      const y = st.ans["1"];
+      const out = (y && y > 2551) || lateBorn() || st.ans["5"] === 3 || st.ans["6"] === 2;
       if (out) { st.screen = "out"; return render(); }
     }
-    if (st.part === 3) return cjAdvance();
+    if (st.part === 3) return cjAdvance();         // only the follow-up screen (37–41) comes here
     if (st.part === 6) return finish();
     st.part++; if (st.part === 3) st.cj.stage = "intro";
     render();
@@ -447,28 +504,35 @@
     if (st.part === 3 && st.cj.stage !== "intro") return cjBack();
     if (st.part === 0) { st.screen = "intro"; return render(); }
     st.part--;
-    if (st.part === 3) st.cj.stage = "post";
+    if (st.part === 3) { if (st.ans["34"] === 0) st.cj.stage = "intro"; else { ensureTasks(); st.cj.stage = "task"; st.cj.i = st.cj.tasks.length - 1; } }
     render();
   }
 
   function autofill(items) {
     for (const it of items) {
-      if (answered(it)) continue;
+      if (answered(it) || (it.type === "check" && Array.isArray(st.ans[it.n]))) continue;
       switch (it.type) {
         case "year": st.ans["1"] = 2500 + Math.floor(R() * 50); break;
         case "residence": { const a = pick(["เมืองบุรีรัมย์", "สตึก", "บ้านด่าน", "แคนดง"]); st.ans["3"] = { a, t: pick(S.tambons.filter(t => t.a === a)).t }; break; }
         case "lgu": { const d = st.ans["3"] || {}; const L = S.lgus.filter(l => l.d === d.a && (!d.t || l.t.includes(d.t))); st.ans["4"] = L.length ? pick(L).n : "unsure"; break; }
-        case "num": st.ans[it.n] = it.n === "8" ? 1 + Math.floor(R() * 6) : 3000 + Math.floor(R() * 40) * 1000; break;
+        case "num": st.ans[it.n] = 1 + Math.floor(R() * 6); break;
+        case "income": if (R() < .7) st.ans["12"] = 3000 + Math.floor(R() * 40) * 1000; else st.ans["12b"] = 1 + Math.floor(R() * 9); break;
+        case "conf": st.ans[it.n] = 10 * Math.floor(R() * 11); break;
+        case "enum": it.parts.forEach(p => { st.ans[p.k] = p.type === "check" ? [1] : 1; }); break;
         case "check": { const o = it.o.filter(o => !it.excl.includes(o.c)); st.ans[it.n] = shuffle(o).slice(0, 1 + Math.floor(R() * 2)).map(o => o.c).sort((a, b) => a - b); break; }
         case "ipc": st.ans[it.n] = pick([-3, -2, -1, 1, 2, 3]); break;
-        case "occ": st.ans["7ก"] = pick(it.o).c; break;
-        case "phase2": st.ans["75"] = 2; break;
+        case "occ": st.ans["8"] = pick(it.o.filter(o => o.c !== it.other)).c; break;
+        case "phase2": st.ans["63"] = 2; break;
         default: st.ans[it.n] = pick(it.o.filter(o => o.c !== it.other)).c;
       }
+      applySkips();
     }
-    if (st.ans["1"] > 2551) st.ans["1"] = 2540;
-    if (st.ans["5"] === 3) st.ans["5"] = 1;
-    if (st.ans["5ก"] === 2) st.ans["5ก"] = 1;
+    if (items.some(i => i.n === "1")) {                 // keep the demo respondent eligible
+      if (st.ans["1"] >= 2551) { st.ans["1"] = 2540; delete st.ans["1m"]; }
+      if (st.ans["5"] === 3) st.ans["5"] = 1;
+      if (st.ans["6"] === 2) st.ans["6"] = 1;
+    }
+    applySkips();
   }
 
   /* ---------- conjoint ---------- */
@@ -511,21 +575,20 @@
   }
   function makeFixedTasks() {
     const pairs = PARTS[3].items.filter(i => i.type === "pair");
-    const mid = [2, 3, 4, 5, 6]; const ord = [1].concat(st.meta.order === 1 ? mid : mid.slice().reverse(), [7]);
-    return ord.map(k => {
+    return [1, 2, 3, 4, 5].map(k => {                           // v1.8: always pair 1 → 5; set B swaps the columns
       const p = pairs.find(x => x.k === k);
       let L = { ...p.A }, Rt = { ...p.B };
       if (st.meta.version === "B") [L, Rt] = [Rt, L];
       const [la, lb] = Avatar.pairLooks(L.sex, Rt.sex, R)(L.age, Rt.age);
       L.look = la; Rt.look = lb;
-      return { k, n: p.n, v: p.v, design: "fixed", pre: p.pre, L, Rt, choice: null };
+      return { k, n: p.n, v: p.v, design: "fixed", pre: p.pre, L, Rt, choice: null, A: p.A.name };
     });
   }
   function ensureTasks() {
     if (st.cj.tasks && st.cj.tasks.design === st.meta.design) return;
     if (st.meta.design === "random") {
       rowOrder = shuffle(["occ", "exp", "fam", "role", "tie"]);
-      st.cj.tasks = Array.from({ length: 7 }, (_, i) => makeRandomTask(i + 1));
+      st.cj.tasks = Array.from({ length: 5 }, (_, i) => makeRandomTask(i + 1));
     } else st.cj.tasks = makeFixedTasks();
     st.cj.tasks.design = st.meta.design;
   }
@@ -560,7 +623,6 @@
     if (task.marks) return task.marks;
     const L = {}, Rr = {};
     ROWS_FIXED.forEach(k => { const a = fill(task.L[k]), b = fill(task.Rt[k]); if (a !== b) [L[k], Rr[k]] = diffMark(a, b); });
-    if (task.k === 7) [L.party, Rr.party] = diffMark(task.L.party, task.Rt.party);
     return (task.marks = { L, R: Rr });
   }
   function candCard(p, side, task, col) {
@@ -571,7 +633,8 @@
     const picked = task.choice === side ? " picked" : task.choice ? " other" : "";
     return `<article class="cand ${sideCls}${picked}" data-side="${side}" style="--d:${(R() * 3).toFixed(2)}s">
       <div class="cand-top">${Avatar.svg(p.look, uid)}<div class="who"><span class="col">ผู้สมัคร ${col}</span><h3>${esc(p.name)}</h3><p class="num small">อายุ ${p.age} ปี · ${p.sex}</p><span class="party">${mk && mk.party ? mk.party : /^[A-D]$/.test(party) ? "พรรค " + party : esc(party)}</span></div></div>
-      <dl>${task.design === "fixed" ? ROWS_FIXED.map(k => `<div${mk && mk[k] ? ' class="dif"' : ""}><dt>${ROW_L[k]}</dt><dd>${mk && mk[k] ? mk[k] : esc(fill(p[k]))}</dd></div>`).join("") : rowsFor(p, task.design).map(([l, v]) => `<div><dt>${l}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
+      <dl>${task.design === "fixed" ? ROWS_FIXED.map(k => { const odds = k === "result" && (fill(p[k]).match(/โอกาสสำเร็จ (\d+) ใน 10/) || [])[1];
+        return `<div${mk && mk[k] ? ' class="dif"' : ""}><dt>${ROW_L[k]}</dt><dd>${mk && mk[k] ? mk[k] : esc(fill(p[k]))}${odds ? beanRow(+odds) : ""}</dd></div>`; }).join("") : rowsFor(p, task.design).map(([l, v]) => `<div><dt>${l}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
       <button type="button" class="btn choose" data-side="${side}">เลือกผู้สมัคร ${col}</button>
       <span class="stamp" aria-hidden="true">เลือกแล้ว</span>
     </article>`;
@@ -580,33 +643,28 @@
   function renderConjoint() {
     ensureTasks();
     const c = st.cj;
-    if (c.stage === "post") {
-      const items = PARTS[3].items.filter(i => i.n === "38" || i.n === "39");
-      app.innerHTML = partHead(3) + `<form class="panel" novalidate>${items.map(i => itemHTML(i)).join("")}<div class="nav">${navBtns()}</div></form>`;
-      return bindForm(items);
-    }
-    if (c.stage === "follow") {
-      const items = PARTS[3].items.filter(i => i.n === "31ก" || i.n === "31ข");
-      app.innerHTML = partHead(3) + `<form class="panel" novalidate><p class="lead">คำถามต่อจากคู่ที่ 1</p>${items.map(i => itemHTML(i)).join("")}<div class="nav">${navBtns()}</div></form>`;
+    if (c.stage === "follow") {                    // after pair 1: items 37–41
+      const items = PARTS[3].items.filter(i => i.follow);
+      app.innerHTML = partHead(3) + `<form class="panel" novalidate><p class="lead">คำถามต่อจากคู่ที่ 1 (นายวิชัย และนายสมพงษ์)</p>${items.map((it, k) => itemHTML(it, items[k - 1])).join("")}<div class="nav">${navBtns()}</div></form>`;
       return bindForm(items);
     }
     if (c.stage === "intro") {
       app.innerHTML = partHead(3) + `<section class="panel">
-        <p class="lead">ต่อไปจะเป็นผู้สมัคร ส.ส. เขตสมมติ 7 คู่ ทุกคู่ลงสมัครในเขตของท่าน ขอให้เลือกคนที่ท่านจะลงคะแนนให้ ถ้าต้องเลือกจริง ไม่มีคำตอบถูกหรือผิด</p>
-        <ul class="bul"><li>พรรค A B C และ D เป็นพรรคสมมติ ไม่ใช่พรรคจริง</li><li>ภาพผู้สมัครเป็นภาพวาดประกอบเท่านั้น</li><li>“เรื่องของท่าน” ในคู่ผู้สมัคร คือ <b>${esc(issueText())}</b> ที่ท่านเลือกไว้ในข้อ 16</li></ul>
-        <fieldset class="q" id="q-29"><legend class="qh"><span class="qn num">29</span><span class="qt">ตรวจความเข้าใจ: พรรค A B C D ในคำถามต่อไปนี้เป็นพรรคแบบใด</span></legend>
-          <div class="opts row"><label class="opt"><input type="radio" name="cmp" value="1"><span class="box"></span><span class="ot">พรรคสมมติ</span></label><label class="opt"><input type="radio" name="cmp" value="2"><span class="box"></span><span class="ot">พรรคจริง</span></label></div>
-          <p class="live small" id="cmpfb"></p></fieldset>
+        <p class="lead">ต่อไปจะให้ท่านดูผู้สมัคร ส.ส. เขตสมมติ 5 คู่ ทุกคนแต่งขึ้น พรรค A ถึง D ก็เป็นพรรคสมมติ ให้ท่านเลือกคนที่จะลงคะแนนให้ในแต่ละคู่ ไม่มีคำตอบถูกหรือผิด</p>
+        <ul class="bul"><li>ภาพผู้สมัครเป็นภาพวาดประกอบเท่านั้น</li><li>“เรื่องของท่าน” ในคู่ผู้สมัคร คือ <b>${esc(issueText())}</b> ที่ท่านเลือกไว้ในข้อ 21 (ข้อ 35: ระบบเติมให้แล้ว)</li></ul>
+        <fieldset class="q" id="q-34"><legend class="qh"><span class="qn num">34</span><span class="qt">ตรวจความเข้าใจ: ผู้สมัครที่จะเห็นต่อไปนี้เป็นคนจริงหรือคนสมมติ</span></legend>
+          <div class="opts row"><label class="opt"><input type="radio" name="cmp" value="1"><span class="box"></span><span class="ot">คนสมมติ</span></label><label class="opt"><input type="radio" name="cmp" value="2"><span class="box"></span><span class="ot">คนจริง</span></label><label class="opt"><input type="radio" name="cmp" value="3"><span class="box"></span><span class="ot">ไม่แน่ใจ</span></label></div>
+          <p class="live small" id="cmpfb">${c.fails ? `<span class="bad">ผู้สมัครทุกคนเป็นคนสมมติ ขอให้อ่านคำชี้แจงอีกครั้งแล้วตอบใหม่</span>` : ""}</p></fieldset>
         <div class="nav">${navBtns("เริ่มคู่ที่ 1")}</div></section>`;
       $("#back").onclick = goBack;
       const af = $("#autofill"); if (af) af.remove();
       $("#next").onclick = () => {
         const v = $('input[name="cmp"]:checked');
-        if (!v) { $("#q-29").classList.add("miss"); return; }
-        if (v.value === "1") { st.ans["29"] = c.fails ? 2 : 1; c.stage = "task"; c.i = 0; return render(); }
+        if (!v) { $("#q-34").classList.add("miss"); return; }
+        if (v.value === "1") { st.ans["34"] = c.fails ? 2 : 1; c.stage = "task"; c.i = 0; return render(); }
         c.fails++;
-        if (c.fails >= 2) { st.ans["29"] = 0; c.stage = "post"; toast("ข้ามการเลือกผู้สมัคร ไปข้อ 38"); return render(); }
-        $("#cmpfb").innerHTML = `<span class="bad">พรรค A–D เป็นพรรคสมมติ ขอให้อ่านคำชี้แจงอีกครั้งแล้วตอบใหม่</span>`;
+        if (c.fails >= 2) { st.ans["34"] = 0; toast("ข้ามการเลือกผู้สมัคร ไปส่วนที่ 5 (ข้อ 46)"); st.part = 4; return render(); }
+        $("#cmpfb").innerHTML = `<span class="bad">ผู้สมัครทุกคนเป็นคนสมมติ ขอให้อ่านคำชี้แจงอีกครั้งแล้วตอบใหม่</span>`;
         v.checked = false;
       };
       return;
@@ -618,7 +676,7 @@
       <div class="conj-head"><p class="eyebrow num">คู่ที่ ${c.i + 1} / ${c.tasks.length}</p>
         <div class="dots">${c.tasks.map((x, i) => `<i class="${x.choice ? "on" : ""}${i === c.i ? " cur" : ""}"></i>`).join("")}</div></div>
       ${pre}
-      <h3 class="ask">ถ้าท่านต้องเลือกระหว่างผู้สมัครสองคนนี้ ท่านจะลงคะแนนให้คนใด</h3>
+      <h3 class="ask"><span class="qn num">${t.n}</span> ถ้าท่านต้องเลือกระหว่างผู้สมัครสองคนนี้ ท่านจะลงคะแนนให้คนใด</h3>
       ${pairMarks(t) ? `<p class="dfnote"><mark class="df">ข้อความที่ขีดเน้น</mark> คือจุดที่สองคนนี้ต่างกัน นอกนั้นเหมือนกัน</p>` : ""}
       <div class="pair">${candCard(t.L, "L", t, "ก")}<div class="vs" aria-hidden="true">หรือ</div>${candCard(t.Rt, "R", t, "ข")}</div>
       <div class="nav"><button type="button" class="btn ghost" id="back">← ย้อนกลับ</button>
@@ -637,6 +695,7 @@
       if (e.target.closest("dl") && !e.target.closest(".choose") && window.getSelection().toString()) return;
       const side = card.dataset.side;
       t.choice = side; t.at = Math.round(performance.now() - st.t0);
+      st.ans[t.n] = (side === "L" ? t.L : t.Rt).name === t.A ? 1 : 2;          // coded by candidate: 1 = candidate ก of set A
       $$(".cand").forEach(x => { x.classList.toggle("picked", x.dataset.side === side); x.classList.toggle("other", x.dataset.side !== side); });
       $$(".dots i")[c.i].classList.add("on");
       $("#next").disabled = false;
@@ -651,15 +710,13 @@
       if (!c.tasks[c.i].choice) return;
       if (c.i === 0 && !c.follow.done) { c.stage = "follow"; c.follow.done = true; return render(); }
       if (c.i < c.tasks.length - 1) { c.i++; return render(); }
-      c.stage = "post"; return render();
+      st.part = 4; st.screen = "part"; return render();
     }
     if (c.stage === "follow") { c.stage = "task"; c.i = Math.min(1, c.tasks.length - 1); return render(); }
-    if (c.stage === "post") { st.part = 4; st.screen = "part"; return render(); }
   }
   function cjBack() {
     clearTimeout(st.cjT);
     const c = st.cj;
-    if (c.stage === "post") { if (st.ans["29"] === 0) { c.stage = "intro"; c.fails = 0; } else { c.stage = "task"; c.i = c.tasks.length - 1; } return render(); }
     if (c.stage === "follow") { c.stage = "task"; c.i = 0; return render(); }
     if (c.stage === "task") {
       if (c.i === 0) { c.stage = "intro"; return render(); }
@@ -668,45 +725,25 @@
     }
   }
 
-  /* ---------- LoC scoring & result ---------- */
+  /* ---------- IPC short form: 3 items per dimension, −3..+3 each, sum + 9 = 0–18.
+     Computed when at least 2 of 3 items are answered (mean × 3). Kept for the researchers only: respondents never see a score. ---------- */
   function scores() {
     const s = { I: 0, P: 0, C: 0 }, n = { I: 0, P: 0, C: 0 };
     for (const it of PARTS[5].items) { const v = st.ans[it.n]; if (typeof v === "number") { s[it.dim] += v; n[it.dim]++; } }
     const out = {};
-    for (const k of ["I", "P", "C"]) out[k] = n[k] === 8 ? s[k] + 24 : n[k] ? Math.round((s[k] / n[k]) * 8 + 24) : null;   // prorate if some skipped
-    out.complete = n.I === 8 && n.P === 8 && n.C === 8;
+    for (const k of ["I", "P", "C"]) out[k] = n[k] === 3 ? s[k] + 9 : n[k] === 2 ? Math.round((s[k] / 2) * 3 + 9) : null;
+    out.complete = n.I === 3 && n.P === 3 && n.C === 3;
     return out;
-  }
-  const DIM = {
-    I: { name: "ภายในตน", en: "Internality", col: "var(--mg)", hi: "เชื่อมากว่าความพยายามและความสามารถของตัวเองเป็นตัวกำหนดผลในชีวิต", lo: "ไม่ค่อยมองว่าความพยายามของตัวเองเพียงอย่างเดียวจะกำหนดผลในชีวิตได้" },
-    P: { name: "ผู้มีอำนาจ", en: "Powerful Others", col: "var(--nk)", hi: "มองว่าคนที่มีอำนาจหรือตำแหน่ง มีผลต่อชีวิตของท่านมาก", lo: "ไม่ค่อยมองว่าชีวิตของท่านขึ้นอยู่กับคนที่มีอำนาจ" },
-    C: { name: "โชคหรือความบังเอิญ", en: "Chance", col: "var(--tb)", hi: "มองว่าโชค ชะตา หรือเหตุบังเอิญ มีผลต่อชีวิตมาก", lo: "ไม่ค่อยมองว่าชีวิตขึ้นอยู่กับโชคหรือความบังเอิญ" },
-  };
-  const band = v => v >= 33 ? "สูง" : v >= 17 ? "ปานกลาง" : "ต่ำ";
-  function radar(sc) {
-    const cx = 150, cy = 140, R0 = 105, ang = { I: -90, P: 30, C: 150 };
-    const pt = (k, f) => { const a = ang[k] * Math.PI / 180; return [cx + Math.cos(a) * R0 * f, cy + Math.sin(a) * R0 * f]; };
-    const ring = f => ["I", "P", "C"].map(k => pt(k, f).join(",")).join(" ");
-    const poly = ["I", "P", "C"].map(k => pt(k, (sc[k] ?? 0) / 48).map(x => x.toFixed(1)).join(",")).join(" ");
-    const lab = k => { const [x, y] = pt(k, 1.2); return `<text x="${x}" y="${y + (k === "I" ? -2 : 12)}" text-anchor="middle" class="rl"><tspan font-weight="600" fill="${DIM[k].col}">${k}</tspan> ${DIM[k].name}</text>`; };
-    return `<svg class="radar" viewBox="-10 0 320 232" role="img" aria-label="ภาพสามเหลี่ยมคะแนน I ${sc.I} P ${sc.P} C ${sc.C} จาก 48">
-      ${[1 / 3, 2 / 3, 1].map(f => `<polygon points="${ring(f)}" fill="none" stroke="var(--line2)" stroke-width="${f === 1 ? 1.4 : .8}" ${f < 1 ? 'stroke-dasharray="3 4"' : ""}/>`).join("")}
-      ${["I", "P", "C"].map(k => `<line x1="${cx}" y1="${cy}" x2="${pt(k, 1)[0]}" y2="${pt(k, 1)[1]}" stroke="var(--line2)" stroke-width=".8"/>`).join("")}
-      <polygon class="rpoly" points="${poly}" fill="color-mix(in oklab,var(--accent) 22%,transparent)" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round"/>
-      ${["I", "P", "C"].map(k => { const [x, y] = pt(k, (sc[k] ?? 0) / 48); return `<circle cx="${x}" cy="${y}" r="5" fill="${DIM[k].col}" stroke="var(--surface)" stroke-width="2"/>`; }).join("")}
-      ${["I", "P", "C"].map(lab).join("")}
-      <text x="${cx - 6}" y="${cy - R0 / 3 + 3}" text-anchor="end" class="rt">16</text><text x="${cx - 6}" y="${cy - 2 * R0 / 3 + 3}" text-anchor="end" class="rt">32</text><text x="${cx - 6}" y="${cy - R0 + 3}" text-anchor="end" class="rt">48</text>
-    </svg>`;
   }
 
   function record() {
     const sc = scores();
     return {
-      meta: { id: st.meta.id, code: null, test: DEMO || TESTRUN, enumerator: st.meta.mode === 2 ? 9 : st.meta.enumerator, collector: st.meta.mode === 0 || st.meta.mode === 1 ? st.meta.collector : "", cdate: st.meta.cdate, collectedBE: beYear(st.meta.cdate || todayISO()), started: st.meta.started, finished: new Date().toISOString(), seconds: Math.round((performance.now() - (st.t0 || 0)) / 1000), mode: st.meta.mode, venue: st.meta.venue, design: st.meta.design, version: st.meta.version, order: st.meta.order, instrument: "IOC v1.5" },
+      meta: { id: st.meta.id, code: null, test: DEMO || TESTRUN, enumerator: st.meta.enumerator, collector: st.meta.mode === 0 || st.meta.mode === 1 ? st.meta.collector : "", cdate: st.meta.cdate, collectedBE: beYear(st.meta.cdate || todayISO()), started: st.meta.started, finished: new Date().toISOString(), seconds: Math.round((performance.now() - (st.t0 || 0)) / 1000), mode: st.meta.mode, venue: st.meta.venue, design: st.meta.design, version: st.meta.version, order: st.meta.order, gsize: st.meta.mode === 3 ? "" : st.meta.group.size, gcode: st.meta.group.size > 1 ? st.meta.group.code : "", instrument: "v1.8" },
       answers: { ...st.ans }, text: { ...st.txt },
       conjoint: (st.cj.tasks || []).map((t, i) => ({ task: i + 1, pair: t.k, item: t.n, chosen: t.choice, ms: t.at, left: strip(t.L, t.design), right: strip(t.Rt, t.design) })),
       ipc: { I: sc.I, P: sc.P, C: sc.C, complete: sc.complete },
-      contact: st.ans["75"] === 1 && st.contact && validPhone(st.contact.phone) ? { phone: String(st.contact.phone).replace(/\D/g, ""), time: st.contact.time || "" } : undefined,
+      contact: st.ans["63"] === 1 && st.contact && validPhone(st.contact.phone) ? { phone: String(st.contact.phone).replace(/\D/g, ""), time: st.contact.time || "" } : undefined,
     };
   }
   function strip(p, design) {
@@ -735,7 +772,7 @@
         keep.push(it); if (mine) st.send = { state: "login" }; continue;
       }
       const j = await Auth.api("submit", { rec: it.rec, invite: it.invite });
-      if (j.ok) { remember(it.rec, j.code); if (it.invite) store.set("inv.done", store.get("inv.done", []).concat([it.invite.slice(-24)]).slice(-50)); if (mine) st.send = { state: "ok", code: j.code, flag: j.flag }; if (it.rec.meta.mode === 2 && !TESTRUN) store.set("done", true); }
+      if (j.ok) { remember(it.rec, j.code); if (it.invite) store.set("inv.done", store.get("inv.done", []).concat([it.invite.slice(-24)]).slice(-50)); if (mine) st.send = { state: "ok", code: j.code, flag: j.flag }; }
       else if (j.offline || j.auth) { keep.push(it); if (mine) st.send = { state: j.auth ? "login" : "queued" }; }
       else if (mine) st.send = { state: "rejected", error: j.error };          // the current interview stays on screen
       else keep.push(Object.assign(it, { error: j.error }));
@@ -772,28 +809,14 @@
   }
 
   function renderDone() {
-    const sc = scores();
-    const order = ["I", "P", "C"].filter(k => sc[k] != null).sort((a, b) => sc[b] - sc[a]);
-    const top = order[0], lead = order.filter(k => sc[top] - sc[k] <= 2), tie = lead.length > 1, flat = lead.length === 3;
-    const anyScore = order.length > 0;
     app.innerHTML = progress() + `
     <section class="panel done">
-      <p class="eyebrow">ขอบคุณที่ร่วมตอบ</p>
-      <h2>ความเชื่อเรื่องสิ่งที่กำหนดชีวิตของท่าน</h2>
-      <p class="lead">คะแนนแต่ละด้านอยู่ระหว่าง 0–48 คิดจาก 8 ข้อของด้านนั้นในส่วนที่ 6 สามด้านนี้<b>แยกกัน</b> ไม่ใช่ประเภทเดียว คนหนึ่งคนอาจสูงได้มากกว่าหนึ่งด้าน</p>
-      ${anyScore ? `<div class="result">
-        <div class="rchart">${radar(sc)}</div>
-        <div class="rtext">
-          <div class="topline"><span class="big" style="color:${flat ? "var(--ink)" : DIM[top].col}">${lead.join(" · ")}</span><div><b>${flat ? "ไม่มีด้านใดเด่นชัด" : tie ? "ด้านที่เด่นใกล้เคียงกัน" : "ด้านที่เด่นที่สุด"}</b><p class="small muted">${flat ? "สามด้านต่างกันไม่เกิน 2 คะแนน" : tie ? lead.map(k => DIM[k].name).join(" และ ") : DIM[top].name + " (" + DIM[top].en + ")"}</p></div></div>
-          ${["I", "P", "C"].map(k => sc[k] == null ? "" : `<div class="bar"><div class="bh"><span><b style="color:${DIM[k].col}">${k}</b> ${DIM[k].name}</span><span class="num">${sc[k]} <small class="muted">/ 48 · ${band(sc[k])}</small></span></div>
-            <div class="track"><i style="--w:${(sc[k] / 48 * 100).toFixed(1)}%;background:${DIM[k].col}"></i><s style="left:50%"></s></div>
-            <p class="small">${sc[k] >= 33 ? DIM[k].hi : sc[k] < 17 ? DIM[k].lo : "อยู่ช่วงกลาง: ให้น้ำหนักด้านนี้บ้างแต่ไม่มาก"}</p></div>`).join("")}
-          ${sc.complete ? "" : `<p class="small muted">ตอบส่วนที่ 6 ไม่ครบ คะแนนจึงคำนวณจากข้อที่ตอบแล้วเฉลี่ยขึ้นเป็น 8 ข้อ</p>`}
-        </div></div>` : `<div class="notice">ยังไม่ได้ตอบส่วนที่ 6 จึงยังแสดงผลไม่ได้</div>`}
-      <div class="notice acc small">ผลนี้เป็นคะแนนจากแบบวัด IPC ของ Levenson (1981) ฉบับแปลไทยที่อยู่ระหว่างตรวจสอบ ใช้เพื่อให้ท่านเห็นภาพความคิดของตัวเองเท่านั้น <b>ไม่ใช่การวินิจฉัย</b> และไม่มีด้านใดดีหรือแย่กว่ากัน เส้นกลางของแต่ละแถบคือ 24 คะแนน (จุดกึ่งกลางของมาตรา) ไม่ใช่ค่าเฉลี่ยของคนทั่วไป</div>
+      <p class="eyebrow">จบแบบสอบถามแล้ว</p>
+      <h2>ขอบคุณที่สละเวลาร่วมตอบ</h2>
+      <p class="lead">คำตอบของท่านใช้วิเคราะห์ในภาพรวมเท่านั้น ไม่นำเสนอรายบุคคลหรือรายหมู่บ้าน${st.ans["63"] === 1 ? " ผู้วิจัยอาจโทรศัพท์ติดต่อเพื่อนัดสัมภาษณ์ระยะที่ 2 ตามที่ท่านยินดี และจะลบเบอร์ภายใน 90 วัน" : ""}</p>
       <div id="sendbox"></div>
       ${DEMO ? `<details class="rec"><summary>ข้อมูลที่ระบบจะบันทึกเมื่อเปิดเก็บจริง <span class="chip">โหมดตัวอย่าง · ไม่ได้ส่งไปที่ใด</span></summary>
-        <p class="small muted">หนึ่งแถวต่อผู้ตอบ ไม่มีชื่อหรือพิกัด เบอร์โทร (เฉพาะผู้ที่ยินดี) แยกไปเก็บอีกชีตและไม่อยู่ในแถวคำตอบ ข้อ 25–28 เก็บเฉพาะคำตอบ การตรวจคะแนนทำตอนวิเคราะห์เท่านั้น</p>
+        <p class="small muted">หนึ่งแถวต่อผู้ตอบ ไม่มีชื่อหรือพิกัด เบอร์โทร (เฉพาะผู้ที่ยินดี) แยกไปเก็บอีกชีตและไม่อยู่ในแถวคำตอบ ข้อ 29–33 เก็บเฉพาะคำตอบ การตรวจคะแนนทำตอนวิเคราะห์เท่านั้น คะแนน IPC (0–18) เก็บไว้ให้ผู้วิจัย ไม่แสดงต่อผู้ตอบ</p>
         <pre>${esc(JSON.stringify(Object.assign({}, st.rec, st.rec.contact ? { contact: { phone: "[ซ่อน]", time: st.rec.contact.time } } : {}), null, 1))}</pre>
         <button type="button" class="btn" id="dl">ดาวน์โหลดไฟล์ JSON</button></details>` : ""}
       <div class="nav"><button type="button" class="btn ghost" id="again">เริ่มใหม่</button><a class="btn primary" href="../">กลับหน้าหลักงานวิจัย</a></div>
@@ -806,7 +829,7 @@
 
   function renderOut() {
     app.innerHTML = `<section class="panel"><h2>ขอบคุณสำหรับเวลาของท่าน</h2>
-      <p class="lead">${st.ans["5ก"] === 2 ? "ท่านเคยตอบแบบสอบถามชุดนี้แล้ว ขอบคุณที่ร่วมงานวิจัยอีกครั้ง ไม่ต้องตอบซ้ำ" : "จากคำตอบในส่วนที่ 1 ท่านไม่อยู่ในกลุ่มที่งานวิจัยนี้ศึกษา (ผู้มีสิทธิเลือกตั้งที่มีชื่อในทะเบียนบ้านใน 4 อำเภอของบุรีรัมย์) จึงขอยุติการตอบเพียงเท่านี้"}</p>
+      <p class="lead">${st.ans["6"] === 2 ? "ท่านเคยตอบแบบสอบถามชุดนี้แล้ว ขอบคุณที่ร่วมงานวิจัยอีกครั้ง ไม่ต้องตอบซ้ำ" : "จากคำตอบในส่วนที่ 1 ท่านไม่อยู่ในกลุ่มที่งานวิจัยนี้ศึกษา (ผู้มีสิทธิเลือกตั้งที่มีชื่อในทะเบียนบ้านใน 4 อำเภอของบุรีรัมย์) จึงขอยุติการตอบเพียงเท่านี้"}</p>
       <div class="nav"><button class="btn ghost" id="b">← แก้คำตอบส่วนที่ 1</button>${DEMO ? `<button class="btn" id="c">ทดลองต่อ (โหมดตัวอย่าง)</button>` : ""}</div></section>`;
     $("#b").onclick = () => { st.screen = "part"; st.part = 0; render(); };
     const c = $("#c"); if (c) c.onclick = () => { st.screen = "part"; st.part = 1; render(); };
@@ -823,6 +846,6 @@
   if (!DEMO && CONFIG.endpoint && outbox().length) flush();
   window.addEventListener("online", () => { if (!DEMO && outbox().length) flush(); });
   const jump = (DEMO || TESTRUN) && location.hash.match(/^#p([1-7])$/);
-  if (jump) { st.meta.mode = 2; st.meta.venue = 4; st.meta.started = new Date().toISOString(); st.t0 = performance.now(); st.screen = "part"; st.part = +jump[1] - 1; if (st.part === 3) st.cj.stage = "intro"; }
+  if (jump) { st.meta.mode = 1; st.meta.venue = 1; st.meta.enumerator = 1; st.meta.started = new Date().toISOString(); st.t0 = performance.now(); st.screen = "part"; st.part = +jump[1] - 1; if (st.part === 3) st.cj.stage = "intro"; }
   render();
 })();

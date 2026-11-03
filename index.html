@@ -504,24 +504,23 @@ footer{margin-top:64px;padding-top:18px;border-top:1px solid var(--line);font-si
   <div class="tscroll"><table class="parts">
     <thead><tr><th>ส่วน</th><th>เนื้อหา</th><th class="r">ข้อ</th><th>ตัวแปรหลัก</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td>ข้อมูลพื้นฐานและพื้นที่อาศัย</td><td class="r">1–6</td><td>zAge, Female, District, LocalGov, Educ</td></tr>
-      <tr><td>2</td><td>อาชีพ รายได้ และความมั่นคงทางเศรษฐกิจ</td><td class="r">7–14</td><td>zPrec, NetRely</td></tr>
-      <tr><td>3</td><td>ความเข้าใจการเมืองและบทบาทของผู้แทน</td><td class="r">15–28</td><td>zSalience, zServiceExp, zRoleKnow</td></tr>
-      <tr><td>4</td><td>การเลือกผู้สมัครสมมติ 7 คู่</td><td class="r">29–39</td><td>Y และตัวแปรกลไก</td></tr>
-      <tr><td>5</td><td>ทัศนคติต่อนโยบาย ความเสี่ยง และเวลา</td><td class="r">40–43</td><td>RiskAv, Impatient, zProgEff</td></tr>
-      <tr><td>6</td><td>แบบวัด IPC ของ Levenson 24 ข้อ</td><td class="r">44–67</td><td>zI, zP, zC</td></tr>
-      <tr><td>7</td><td>ชุมชนของท่าน</td><td class="r">68–74</td><td>zComm, Insur</td></tr>
+      <tr><td>1</td><td>คุณสมบัติและข้อมูลพื้นฐาน</td><td class="r">1–7</td><td>zAge, Female, District, LocalGov, Educ</td></tr>
+      <tr><td>2</td><td>การทำงานและเศรษฐกิจครัวเรือน</td><td class="r">8–19</td><td>zPrec, NetRely, ActRely</td></tr>
+      <tr><td>3</td><td>การเมืองและบทบาทของ ส.ส.</td><td class="r">20–33</td><td>ServGap, zRoleKnow</td></tr>
+      <tr><td>4</td><td>การเลือกผู้สมัครสมมติ 5 คู่ และความเชื่อมั่นร้อยละ</td><td class="r">34–45</td><td>Y, ConfPol, ConfNet, C_Recip, C_Cond, C_Certain</td></tr>
+      <tr><td>5</td><td>ความเสี่ยง</td><td class="r">46–48</td><td>RiskAvScore</td></tr>
+      <tr><td>6</td><td>แบบวัด IPC ของ Levenson ฉบับย่อ 9 ข้อ</td><td class="r">49–57</td><td>zI, zP, zC</td></tr>
+      <tr><td>7</td><td>ชุมชนและการพึ่งพาทางการเมือง</td><td class="r">58–64</td><td>zComm, zPD</td></tr>
     </tbody></table></div>
-  <div class="notice acc small">ข้อห้ามที่ใช้ตลอดแบบสอบถาม: <b>ไม่ถามและไม่บันทึกว่าผู้ตอบลงคะแนนให้ผู้สมัครหรือพรรคใด</b> พรรคในคู่ผู้สมัครเป็นพรรคสมมติ A–D ข้อ 43 ใช้ได้เมื่อคณะกรรมการจริยธรรมฯ อนุมัติแล้วเท่านั้น</div>
+  <div class="notice acc small">ข้อห้ามที่ใช้ตลอดแบบสอบถาม: <b>ไม่ถามและไม่บันทึกว่าผู้ตอบลงคะแนนให้ผู้สมัครหรือพรรคใด</b> พรรคในคู่ผู้สมัครเป็นพรรคสมมติ A–D ทุกชุดตอบต่อหน้าผู้เก็บข้อมูล ไม่มีการตอบออนไลน์ทางไกล และไม่แสดงคะแนน IPC รายบุคคลแก่ผู้ตอบ</div>
 
   <h3 class="sub">การเลือกผู้สมัครสมมติ</h3>
-  <div class="prose"><p>ผู้ตอบเลือกผู้สมัคร 7 คู่ที่กำหนดไว้ตายตัวตาม IOC ฉบับที่ 1.4 คู่ที่ 1 ให้ตัวแปรตามหลัก Y (เลือกฝั่งเครือข่าย = 1) คู่ที่ 2–7 แยกกลไกทีละเรื่อง ได้แก่ บุญคุณ ความแน่นอน คู่ตรวจความตั้งใจ เงินรายครอบครัวกับโครงการส่วนรวม ความช่วยเหลือแบบมีเงื่อนไข และการตามตัวบุคคลเมื่อย้ายพรรค ชุด A/B สลับซ้ายขวา และสลับลำดับคู่ที่ 2–6 เพื่อไม่ให้ตำแหน่งหรือลำดับบิดผล ภาพผู้สมัครวาดจากตัวละครในสไลด์ของผู้วิจัย และบันทึกลักษณะภาพไว้กับคำตอบ</p></div>
+  <div class="prose"><p>ผู้ตอบเลือกผู้สมัคร 5 คู่ตามแบบสอบถามฉบับที่ 1.8 ถามตามลำดับคู่ 1 ถึง 5 ทุกครั้ง คู่ที่ 1 ให้ตัวแปรตามหลัก Y (เลือกฝั่งเครือข่าย = 1) ตามด้วยความเชื่อมั่นร้อยละต่อผู้สมัครแต่ละฝั่ง (ข้อ 37–38 ใช้เมล็ดถั่ว 10 เมล็ด) คู่ที่ 2–4 แยกกลไกทีละเรื่อง ได้แก่ บุญคุณ ความช่วยเหลือแบบมีเงื่อนไข และความแน่นอน คู่ที่ 5 ตรวจความตั้งใจตอบ ชุด A/B สลับซ้ายขวา และลงรหัสตามตัวผู้สมัคร ไม่ใช่ตามคอลัมน์</p></div>
 
   <h3 class="sub">แบบจำลองหลัก</h3>
-  <div class="eq">ln[P/(1−P)] = β<sub>0</sub> + <span class="b1">β<sub>1</sub>zP</span> + β<sub>2</sub>zC + β<sub>3</sub>zI + β<sub>4</sub>zPrec + β<sub>5</sub>LocalGov + β<sub>6</sub>NetRely + β<sub>7</sub>zComm + β<sub>8</sub>Insur<br>
-    &nbsp;&nbsp;&nbsp;&nbsp;+ β<sub>9</sub>(zP × zPrec) + β<sub>10</sub>RiskAv + β<sub>11</sub>zProgEff + γ<sub>1</sub>zAge + γ<sub>2</sub>Female + γ<sub>3</sub>zSalience<br>
-    &nbsp;&nbsp;&nbsp;&nbsp;+ γ<sub>4</sub>Impatient + γ<sub>5</sub>Educ + Σλ·Mode + Σδ·District</div>
-  <div class="prose small"><p>P คือความน่าจะเป็นที่ผู้ตอบเลือกผู้สมัครที่อิงเครือข่ายในคู่ที่ 1 ตัวแปรที่ขึ้นต้นด้วย z แปลงเป็นค่ามาตรฐาน (ค่าเฉลี่ย 0 ส่วนเบี่ยงเบนมาตรฐาน 1) เพื่อเทียบขนาดสัมประสิทธิ์ข้ามตัวแปรได้ ความคลาดเคลื่อนมาตรฐานจัดกลุ่มตาม อปท. และทดสอบ H1b ด้วย Wald test</p></div>
+  <div class="eq">ln[P/(1−P)] = β<sub>0</sub> + <span class="b1">β<sub>1</sub>zP</span> + β<sub>2</sub>zC + β<sub>3</sub>zI + β<sub>4</sub>zPrec + β<sub>5</sub>(zP × zPrec) + β<sub>6</sub>zPD<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;+ γ<sub>1</sub>zAge + γ<sub>2</sub>Female + γ<sub>3</sub>Educ + γ<sub>4</sub>SelfAdmin + Σδ·District</div>
+  <div class="prose small"><p>P คือความน่าจะเป็นที่ผู้ตอบเลือกผู้สมัครที่อิงเครือข่ายในคู่ที่ 1 ตัวแปรที่ขึ้นต้นด้วย z แปลงเป็นค่ามาตรฐาน ความคลาดเคลื่อนมาตรฐานจัดกลุ่มตาม อปท. แบบจำลองสำรองใช้ OLS กับความเชื่อมั่นร้อยละ (ข้อ 37–38) ด้วยตัวแปรต้นชุดเดียวกัน</p></div>
 
   <h3 class="sub">จริยธรรมการวิจัย</h3>
   <ul class="prose" style="padding-left:20px;margin:0;display:grid;gap:6px">
@@ -691,16 +690,16 @@ footer{margin-top:64px;padding-top:18px;border-top:1px solid var(--line);font-si
 })();
 /* ---------- survey shelf ---------- */
 (function(){
-  const P=[["พื้นฐานและพื้นที่อาศัย","ข้อ 1–6","อายุ เพศ อำเภอที่อาศัย และสิทธิเลือกตั้งท้องถิ่น","yellow"],
-    ["เศรษฐกิจของครัวเรือน","ข้อ 7–14","อาชีพ รายได้ หนี้ และเหตุการณ์ที่ทำให้ขาดรายได้","red"],
-    ["การเมืองและผู้แทน","ข้อ 15–28","เรื่องที่อยากให้ ส.ส. แก้ และงานที่ ส.ส. ควรทำ","blue"],
-    ["เลือกผู้สมัครสมมติ","ข้อ 29–39","ผู้สมัคร 7 คู่ในเขตของท่าน ทุกพรรคเป็นพรรคสมมติ","pink"],
-    ["ความเสี่ยงและเวลา","ข้อ 40–43","เลือกระหว่างเงินที่ได้แน่นอนกับโอกาสได้มากกว่า","orange"],
-    ["ความเชื่อเรื่องชีวิต","ข้อ 44–67","24 ข้อ เห็นด้วยหรือไม่ แล้วรู้ผล I · P · C ตอนจบ","dgreen"],
-    ["ชุมชนของท่าน","ข้อ 68–75","คนในชุมชนพึ่งใครเวลาเดือดร้อน","green"]];
+  const P=[["พื้นฐานและพื้นที่อาศัย","ข้อ 1–7","อายุ เพศ อำเภอที่อาศัย และสิทธิเลือกตั้งท้องถิ่น","yellow"],
+    ["เศรษฐกิจของครัวเรือน","ข้อ 8–19","อาชีพ รายได้ หนี้ และเหตุการณ์ที่ทำให้ขาดรายได้","red"],
+    ["การเมืองและผู้แทน","ข้อ 20–33","เรื่องที่อยากให้ ส.ส. แก้ และงานที่ ส.ส. ควรทำ","blue"],
+    ["เลือกผู้สมัครสมมติ","ข้อ 34–45","ผู้สมัคร 5 คู่ในเขตของท่าน ทุกพรรคเป็นพรรคสมมติ","pink"],
+    ["ความเสี่ยง","ข้อ 46–48","เลือกระหว่างเงินที่ได้แน่นอนกับโอกาสได้มากกว่า","orange"],
+    ["ความเชื่อเรื่องชีวิต","ข้อ 49–57","9 ข้อ เห็นด้วยหรือไม่ และมากน้อยเพียงใด","dgreen"],
+    ["ชุมชนของท่าน","ข้อ 58–64","คนในชุมชนพึ่งใครเวลาเดือดร้อน","green"]];
   const ICO={yellow:'<rect x="6" y="6" width="88" height="88" rx="22" fill="var(--s-yellow)"/>',red:'<circle cx="50" cy="50" r="46" fill="var(--s-red)"/>',blue:'<circle cx="50" cy="50" r="44" fill="var(--s-blue)"/>',pink:'<path d="M50 8 C58 33 67 42 92 50 C67 58 58 67 50 92 C42 67 33 58 8 50 C33 42 42 33 50 8Z" fill="var(--s-pink)" stroke="var(--s-pink)" stroke-width="10" stroke-linejoin="round"/>',orange:'<path d="M50 12 L90 84 L10 84 Z" fill="var(--s-orange)" stroke="var(--s-orange)" stroke-width="14" stroke-linejoin="round"/>',dgreen:'<rect x="4" y="8" width="74" height="44" rx="22" fill="var(--s-dgreen)"/><rect x="22" y="48" width="74" height="44" rx="22" fill="var(--s-dgreen)"/>',green:'<g fill="var(--s-green)"><circle cx="31" cy="31" r="25"/><circle cx="69" cy="31" r="25"/><circle cx="31" cy="69" r="25"/><circle cx="69" cy="69" r="25"/><rect x="25" y="25" width="50" height="50"/></g>'};
   const sh=document.getElementById("shelf");
-  sh.innerHTML=`<a class="pc start" href="survey/"><span class="k">7 ส่วน · 75 ข้อ</span><h3>เริ่มตอบตั้งแต่ต้น</h3><p>ไม่ต้องบอกชื่อ ข้ามข้อที่ไม่สบายใจได้ และไม่มีคำถามว่าท่านเลือกผู้สมัครหรือพรรคใด เมื่อจบจะเห็นคะแนนความเชื่อของตัวเองทันที</p><span class="btn">เริ่มทำแบบสอบถาม</span></a>`+
+  sh.innerHTML=`<a class="pc start" href="survey/"><span class="k">7 ส่วน · 64 ข้อ</span><h3>เริ่มตอบตั้งแต่ต้น</h3><p>ไม่ต้องบอกชื่อ ข้ามข้อที่ไม่สบายใจได้ และไม่มีคำถามว่าท่านเลือกผู้สมัครหรือพรรคใด ตอบต่อหน้าผู้เก็บข้อมูลเท่านั้น</p><span class="btn">เริ่มทำแบบสอบถาม</span></a>`+
     P.map(([t,r,d,k],i)=>`<a class="pc" href="survey/#p${i+1}"><svg class="ico" viewBox="0 0 100 100" aria-hidden="true">${ICO[k]}</svg><span class="k">ส่วนที่ ${i+1} · ${r}</span><h3>${t}</h3><p>${d}</p><span class="go">ดูส่วนนี้ ›</span></a>`).join("");
   const step=()=>Math.min(sh.clientWidth*.8,620);
   document.getElementById("shL").onclick=()=>sh.scrollBy({left:-step(),behavior:"smooth"});

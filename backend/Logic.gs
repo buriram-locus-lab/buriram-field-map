@@ -97,7 +97,7 @@ function findLikelyDuplicate(rec, others) {
 function flattenRecord(rec) {
   var row = {}, m = rec.meta || {};
   row.code = m.code; row.rid = m.id; row.collector = m.collector || ""; row.inv = m.inv || ""; row.test = m.test ? 1 : 0; row.started = m.started; row.finished = m.finished; row.seconds = m.seconds;
-  row.mode = m.mode; row.venue = m.venue; row.enumerator = m.enumerator; row.version = m.version; row.order = m.order;
+  row.mode = m.mode; row.venue = m.venue; row.enumerator = m.enumerator; row.version = m.version; row.order = m.order; row.gsize = m.gsize; row.gcode = m.gcode; row.instrument = m.instrument || "";
   var A = rec.answers || {};
   Object.keys(A).forEach(function (k) {
     var v = A[k];

@@ -85,7 +85,7 @@ function apiSubmit_(body) {
     if (used && used !== String(m.id)) throw new Error("QR นี้ถูกใช้ตอบไปแล้ว หนึ่ง QR ใช้ได้หนึ่งคน");
     enumr = o.e; collector = o.u; cdate = todayISO_(); m.inv = o.i; m.venue = o.v;
   }
-  else if (mode === 2) { enumr = 9; cdate = todayISO_(); }
+  else if (mode === 2) throw new Error("ปิดการตอบออนไลน์ทางไกลแล้ว ทุกชุดต้องตอบต่อหน้าผู้เก็บข้อมูล");
   else if (mode === 0 || mode === 1) { var u = auth_(body.token, "collector"); enumr = u.enumerator; collector = u.username; cdate = validDate_(m.cdate); }
   else throw new Error("ไม่ทราบวิธีตอบ");
   return saveRecord_(rec, enumr, collector, cdate);
@@ -142,11 +142,11 @@ function apiData_(b) {
   var R = sheet_(SHEETS.responses, RESP_HEADER);
   var v = R.getDataRange().getValues(), h = v[0].map(String);
   var col = function (n) { return h.indexOf(n); };
-  var c = { code: col("code"), who: col("collector"), rec: col("received"), test: col("test"), flag: col("flag"), sex: col("q2"), d: col("q3_district"), t: col("q3_tambon"), mode: col("mode"), P: col("ipc_P"), I: col("ipc_I"), C: col("ipc_C"), q75: col("q75") };
+  var c = { code: col("code"), who: col("collector"), rec: col("received"), test: col("test"), flag: col("flag"), sex: col("q2"), d: col("q3_district"), t: col("q3_tambon"), mode: col("mode"), P: col("ipc_P"), I: col("ipc_I"), C: col("ipc_C"), q63: col("q63"), q75: col("q75") };   // q63 = phase-2 consent in v1.8 (q75 in v1.5)
   var rows = v.slice(1).map(function (r) {
     var g = function (k) { return c[k] >= 0 ? r[c[k]] : ""; };
     return { code: String(g("code")), collector: String(g("who")), received: g("rec") ? new Date(g("rec")).toISOString() : "", test: +g("test") === 1, flag: g("flag"), sex: +g("sex") || 0, district: g("d"), tambon: g("t"),
-      mode: g("mode"), P: g("P"), I: g("I"), C: g("C"), phase2: +g("q75") === 1 };
+      mode: g("mode"), P: g("P"), I: g("I"), C: g("C"), phase2: +g("q63") === 1 || +g("q75") === 1 };
   });
   var K = sheet_(SHEETS.contacts, CONTACT_HEADER).getLastRow() - 1;
   return { rows: rows, lgus: LGUS, district: DISTRICT_TARGET, contacts: Math.max(0, K), accept: props_().getProperty("ACCEPT") === "1",
@@ -192,10 +192,10 @@ function apiSeedTest_(b) {
   var n = Math.min(+b.n || 20, 100), made = 0, cdate = todayISO_(), BE = +cdate.slice(0, 4) + 543;
   for (var i = 0; i < n; i++) {
     var L = LGUS[Math.floor(Math.random() * LGUS.length)], y = BE - (18 + Math.floor(Math.random() * 60)), enumr = 1 + Math.floor(Math.random() * 4);
-    var ans = { "1": y, "2": 1 + Math.floor(Math.random() * 2), "3": { a: L.d, t: L.t[0] }, "4": L.n, "5": 1, "75": Math.random() < .3 ? 1 : 2 };
+    var ans = { "1": y, "2": 1 + Math.floor(Math.random() * 2), "3": { a: L.d, t: L.t[0] }, "4": L.n, "5": 1, "6": 1, "63": Math.random() < .3 ? 1 : 2 };
     var rec = { meta: { id: "seed" + Utilities.getUuid().slice(0, 8), test: true, mode: 1, venue: 1, started: new Date().toISOString(), finished: new Date().toISOString() }, answers: ans, text: {},
-      ipc: { I: 10 + Math.floor(Math.random() * 30), P: 5 + Math.floor(Math.random() * 35), C: 5 + Math.floor(Math.random() * 35), complete: true }, conjoint: [] };
-    if (ans["75"] === 1) rec.contact = { phone: "08" + Math.floor(10000000 + Math.random() * 89999999), time: "เย็น" };
+      ipc: { I: Math.floor(Math.random() * 19), P: Math.floor(Math.random() * 19), C: Math.floor(Math.random() * 19), complete: true }, conjoint: [] };
+    if (ans["63"] === 1) rec.contact = { phone: "08" + Math.floor(10000000 + Math.random() * 89999999), time: "เย็น" };
     try { saveRecord_(rec, enumr, "seed", cdate); made++; } catch (x) {}
   }
   log_(me.username, "สร้างข้อมูลทดสอบ " + made + " ชุด");

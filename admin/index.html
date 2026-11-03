@@ -112,7 +112,7 @@ dialog pre{font-family:var(--f-mono);font-size:.76rem;background:var(--sunk);bor
       var l = L[Math.floor(Math.random() * L.length)], d = new Date(now.getTime() - Math.floor(Math.random() * 6) * 864e5);
       var ddmm = ("0" + d.getDate()).slice(-2) + ("0" + (d.getMonth() + 1)).slice(-2), en = 1 + Math.floor(Math.random() * 4), k = ddmm + en;
       seq[k] = (seq[k] || 0) + 1; var g = "ZYXB"[Math.floor(Math.random() * 4)];
-      rows.push({ code: g + l.code + "-" + ddmm + "-" + en + ("0" + seq[k]).slice(-2), collector: "enum" + en, received: d.toISOString(), test: true, flag: Math.random() < .02 ? "อาจซ้ำกับ …" : "", sex: 1 + Math.floor(Math.random() * 2), district: l.d, tambon: l.t[0], mode: Math.random() < .7 ? 1 : 0, I: 10 + Math.floor(Math.random() * 30), P: 5 + Math.floor(Math.random() * 35), C: 5 + Math.floor(Math.random() * 35), phase2: Math.random() < .25 });
+      rows.push({ code: g + l.code + "-" + ddmm + "-" + en + ("0" + seq[k]).slice(-2), collector: "enum" + en, received: d.toISOString(), test: true, flag: Math.random() < .02 ? "อาจซ้ำกับ …" : "", sex: 1 + Math.floor(Math.random() * 2), district: l.d, tambon: l.t[0], mode: Math.random() < .7 ? 1 : 0, I: Math.floor(Math.random() * 19), P: Math.floor(Math.random() * 19), C: Math.floor(Math.random() * 19), phase2: Math.random() < .25 });
     }
     var contacts = rows.filter(function (r) { return r.phase2; }).map(function (r) { return { code: r.code, phone: "08" + Math.floor(10000000 + Math.random() * 89999999), time: "เย็น", consented: r.received, deleteBy: "2570-06-30" }; });
     var users = [{ username: "kobphat", name: "กอบพัชร์", role: "admin", enumerator: 1, active: true, lastLogin: now.toISOString() }, { username: "woranista", name: "วรนิษฐา", role: "admin", enumerator: 2, active: true, lastLogin: now.toISOString() },
@@ -268,7 +268,7 @@ dialog pre{font-family:var(--f-mono);font-size:.76rem;background:var(--sunk);bor
   function renderExport() {
     $("#px").innerHTML = '<div class="card" style="display:grid;gap:12px"><h3>ดาวน์โหลดชุดข้อมูล</h3><p class="small muted">ไฟล์ CSV (UTF-8 เปิดด้วย Excel, Stata, R ได้) หนึ่งแถวต่อผู้ตอบ ใช้รหัสผู้ตอบเป็นตัวระบุ ไม่มีชื่อ ไม่มีเบอร์โทร ทุกครั้งที่ดาวน์โหลดถูกบันทึกในชีต “บันทึกระบบ”</p>' +
       '<label class="small"><input type="checkbox" id="xt"> รวมข้อมูลทดสอบ</label><div class="tools"><button class="btn primary" data-w="responses">คำตอบทั้งหมด (responses.csv)</button><button class="btn" data-w="conjoint">การเลือกคู่ผู้สมัคร (conjoint.csv)</button></div>' +
-      '<p class="small muted">คอลัมน์: code, rid (เลขอ้างอิงฟอร์ม), collector, received, test, flag, started, finished, seconds, mode (0 กระดาษ · 1 อ่านให้ฟัง · 2 ออนไลน์ · 3 QR), venue, enumerator, version, order, q1 … q76, ipc_I, ipc_P, ipc_C</p></div>';
+      '<p class="small muted">คอลัมน์: code, rid (เลขอ้างอิงฟอร์ม), collector, received, test, flag, started, finished, seconds, mode (0 กระดาษ · 1 อ่านให้ฟัง · 3 QR · 2 ออนไลน์ปิดแล้ว), venue, enumerator, version, order, gsize, gcode, q1 … q64 ตามแบบสอบถามฉบับ 1.8 (q1m เดือนเกิด, q8b อาชีพรอง, q12b ช่วงรายได้, q64a–q64d บันทึกผู้เก็บ), ipc_I, ipc_P, ipc_C (0–18 ต่อด้าน)</p></div>';
     $("#px").onclick = function (e) { var b = e.target.closest("button[data-w]"); if (!b) return;
       if (demo()) return msg("โหมดตัวอย่าง: ดาวน์โหลดได้เมื่อเชื่อมหลังบ้านแล้ว", true);
       b.disabled = true; api("exportCsv", { which: b.dataset.w, includeTest: $("#xt").checked }).then(function (j) { b.disabled = false; if (!j.ok) return fail(j);
