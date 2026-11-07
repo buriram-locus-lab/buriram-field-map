@@ -74,7 +74,7 @@ dialog pre{font-family:var(--f-mono);font-size:.76rem;background:var(--sunk);bor
 <meta name="theme-color" content="#f7f7f4">
 </head>
 <body>
-<nav class="site-nav" aria-label="เมนูหลัก"><div class="wrap"><a class="brand" href="../"><img class="logo" src="../assets/logo.svg" alt="" width="33" height="22">ระบบอุปถัมภ์ · บุรีรัมย์</a><ul><li><a class="nl" href="../#intro">บทนำ</a></li><li><a class="nl" href="../#lit">วรรณกรรม</a></li><li><a class="nl" href="../#method">ระเบียบวิธี</a></li><li><a class="nl" href="../field/">แผนที่ภาคสนาม</a></li><li><a class="nl" href="../codes/">บัตรรหัส</a></li><li><a class="nl cta" href="../survey/">แบบสอบถาม</a></li><li><a class="nl" href="../admin/" aria-current="page">เข้าสู่ระบบ</a></li></ul></div></nav>
+<nav class="site-nav" aria-label="เมนูหลัก"><div class="wrap"><a class="brand" href="../"><img class="logo" src="../assets/logo.svg" alt="" width="33" height="22">Econ Socio-Lab</a><ul><li><a class="nl" href="../#intro">บทนำ</a></li><li><a class="nl" href="../#lit">วรรณกรรม</a></li><li><a class="nl" href="../#method">ระเบียบวิธี</a></li><li><a class="nl" href="../field/">แผนที่ภาคสนาม</a></li><li><a class="nl" href="../codes/">บัตรรหัส</a></li><li><a class="nl cta" href="../survey/">แบบสอบถาม</a></li><li><a class="nl" href="../admin/" aria-current="page">เข้าสู่ระบบ</a></li></ul></div></nav>
 <main class="wrap" id="root" aria-live="polite"></main>
 <dialog id="dlg"><div class="in"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h3 id="dlgT"></h3><button class="btn sm" id="dlgX">ปิด</button></div><div id="dlgB"></div></div></dialog>
 <script src="../assets/config.js"></script>
@@ -177,7 +177,7 @@ dialog pre{font-family:var(--f-mono);font-size:.76rem;background:var(--sunk);bor
 
   /* ---------- admin ---------- */
   function loadAdmin() {
-    root.innerHTML = headBar("หลังบ้านแบบสอบถาม", "ระบบอุปถัมภ์ · บุรีรัมย์ · ข้อมูลจาก Google Sheet ของผู้วิจัย") + '<p class="empty">กำลังโหลดข้อมูล…</p>';
+    root.innerHTML = headBar("หลังบ้านแบบสอบถาม", "Econ Socio-Lab · ข้อมูลจาก Google Sheet ของผู้วิจัย") + '<p class="empty">กำลังโหลดข้อมูล…</p>';
     wireHead();
     var slow = setTimeout(function () { var e = root.querySelector(".empty"); if (e) e.textContent = "กำลังโหลดข้อมูล… ระบบของ Google ตื่นช้าในครั้งแรก รออีกสักครู่"; }, 8000);
     api("data").then(function (j) { clearTimeout(slow); if (!j.ok) return fail(j); D = j; try { renderAdmin(); } catch (e) { root.insertAdjacentHTML("beforeend", '<p class="notice">แสดงผลไม่ได้: ' + esc(e.message) + '</p>'); console.error(e); } })
@@ -185,7 +185,7 @@ dialog pre{font-family:var(--f-mono);font-size:.76rem;background:var(--sunk);bor
   }
   function rows() { return D.rows.filter(function (r) { return $("#showTest").checked || !r.test; }).map(function (r) { r.p = parse(r.code); return r; }).filter(function (r) { return r.p; }); }
   function renderAdmin() {
-    root.innerHTML = headBar("หลังบ้านแบบสอบถาม", "ระบบอุปถัมภ์ · บุรีรัมย์ · ข้อมูลจาก Google Sheet ของผู้วิจัย") +
+    root.innerHTML = headBar("หลังบ้านแบบสอบถาม", "Econ Socio-Lab · ข้อมูลจาก Google Sheet ของผู้วิจัย") +
       '<div class="tools"><span class="chip ' + (D.accept ? "mint" : "warn") + '"><i></i>' + (D.accept ? "เปิดรับข้อมูลจริงแล้ว" : "ยังไม่เปิดรับข้อมูลจริง (รับเฉพาะข้อมูลทดสอบ)") + '</span>' +
       '<label class="chip"><input type="checkbox" id="showTest"' + (D.accept ? "" : " checked") + '> แสดงข้อมูลทดสอบ</label>' +
       '<label class="chip">เป้า <select id="tier" style="border:0;background:none;font:inherit;color:inherit;min-height:0;padding:0"><option value="300">300</option><option value="440" selected>440</option><option value="880">880</option></select></label>' +
