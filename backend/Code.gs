@@ -45,7 +45,7 @@ var API = {
   submit: apiSubmit_, login: apiLogin_, me: apiMe_, changePassword: apiChangePassword_, mine: apiMine_,
   data: apiData_, detail: apiDetail_, contacts: apiContacts_, deleteContacts: apiDeleteContacts_, exportCsv: apiExport_,
   users: apiUsers_, addUser: apiAddUser_, resetPassword: apiResetPassword_, setUser: apiSetUser_,
-  seedTest: apiSeedTest_, clearTest: apiClearTest_, invite: apiInvite_, checkInvite: apiCheckInvite_,
+  seedTest: apiSeedTest_, clearTest: apiClearTest_, invite: apiInvite_, invites: apiInvites_, cancelInvite: apiCancelInvite_, checkInvite: apiCheckInvite_,
   progress: apiProgress_,
 };
 function doPost(e) {
@@ -82,7 +82,7 @@ function apiSubmit_(body) {
   if (!m.id || String(m.id).length < 6) throw new Error("คำตอบไม่มีเลขอ้างอิง");
   var mode = +m.mode, enumr, collector = "", cdate;
   if (mode === 3) {                                     // answered on the respondent's own phone from a collector's QR
-    var o = readInvite_(body.invite), used = inviteUsed_(o.i);
+    var o = readInvite_(body.invite, INVITE_GRACE_MIN), used = inviteUsed_(o.i);
     if (used && used !== String(m.id)) throw new Error("QR นี้ถูกใช้ตอบไปแล้ว หนึ่ง QR ใช้ได้หนึ่งคน");
     enumr = o.e; collector = o.u; cdate = todayISO_(); m.inv = o.i; m.venue = o.v;
   }

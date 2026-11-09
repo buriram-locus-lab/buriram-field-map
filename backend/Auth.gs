@@ -166,24 +166,63 @@ function resetAdminPassword() {
   return pw;
 }
 
-/* ---------- QR invites: a collector hands a respondent a one-time link to answer on the respondent's own phone ---------- */
-var INVITE_DAYS = 7;
-function apiInvite_(b) {
-  var u = auth_(b.token, "collector"), n = Math.max(1, Math.min(10, +b.n || 1)), venue = Math.max(1, Math.min(3, +b.venue || 1)), out = [];
-  for (var i = 0; i < n; i++) {
-    var body = b64_(JSON.stringify({ k: "inv", i: Utilities.getUuid().replace(/-/g, "").slice(0, 12), u: u.username, e: u.enumerator, v: venue, x: Date.now() + INVITE_DAYS * 864e5 }));
-    out.push(body + "." + sign_(body));
-  }
-  log_(u.username, "สร้าง QR ให้ผู้ตอบ " + n + " ใบ");
-  return { invites: out, days: INVITE_DAYS };
+/* ---------- QR invites: a collector shows a one-time QR to a respondent who has just consented, at the venue ----------
+   Conditions submitted to the ethics committee (AF12): the respondent answers on the spot in the collector's presence,
+   a collector supervises no more than 3 self-completing respondents at a time, and no link is given to answer later. So:
+   - a collector can have at most INVITE_MAX QR open at once (open = issued, not yet answered, not cancelled, not timed out)
+   - a QR must be opened within INVITE_MINUTES of being issued; answers are accepted for INVITE_GRACE_MIN after that
+   Every QR issued is listed in the sheet "QR ที่ออก" (id, collector, times, status); a QR that is not in that sheet does not work. */
+var INVITE_MAX = 3, INVITE_MINUTES = 120, INVITE_GRACE_MIN = 60;
+var INV_SHEET = "QR ที่ออก", INV_HEADER = ["inv", "collector", "issued", "start_by", "status"];
+function invRows_() {
+  var v = sheet_(INV_SHEET, INV_HEADER).getDataRange().getValues();
+  return v.slice(1).map(function (r, k) { return { row: k + 2, id: String(r[0]), user: String(r[1]), issued: new Date(r[2]).getTime(), x: new Date(r[3]).getTime(), status: String(r[4] || "") }; });
 }
-/** Checks an invite; returns its payload with the collector's current account, or throws. */
-function readInvite_(t) {
+function usedInviteIds_() {
+  var v = sheet_(SHEETS.responses, RESP_HEADER).getDataRange().getValues(), h = v[0].map(String), ii = h.indexOf("inv"), used = {};
+  if (ii >= 0) for (var i = 1; i < v.length; i++) if (v[i][ii]) used[String(v[i][ii])] = true;
+  return used;
+}
+/** The collector's QR that still take up one of the 3 places. */
+function openInvites_(username) {
+  var used = usedInviteIds_(), now = Date.now();
+  return invRows_().filter(function (o) { return o.user === username && !o.status && !used[o.id] && o.x + INVITE_GRACE_MIN * 6e4 > now; })
+    .map(function (o) { return { id: o.id, issued: o.issued, startBy: o.x }; });
+}
+function apiInvite_(b) {
+  var u = auth_(b.token, "collector"), venue = Math.max(1, Math.min(3, +b.venue || 1));
+  var open = openInvites_(u.username);
+  if (open.length >= INVITE_MAX) throw new Error("มี QR ที่ยังเปิดอยู่ครบ " + INVITE_MAX + " ใบแล้ว ผู้เก็บหนึ่งคนดูแลผู้ตอบพร้อมกันได้ไม่เกิน " + INVITE_MAX + " คน รอให้ผู้ตอบส่งคำตอบ หรือยกเลิก QR ใบที่ไม่ได้ใช้ก่อน");
+  var id = Utilities.getUuid().replace(/-/g, "").slice(0, 12), now = Date.now(), x = now + INVITE_MINUTES * 6e4;
+  var body = b64_(JSON.stringify({ k: "inv", i: id, u: u.username, e: u.enumerator, v: venue, x: x }));
+  sheet_(INV_SHEET, INV_HEADER).appendRow([id, u.username, new Date(now), new Date(x), ""]);
+  log_(u.username, "สร้าง QR ให้ผู้ตอบ " + id);
+  open.push({ id: id, issued: now, startBy: x });
+  return { invite: body + "." + sign_(body), id: id, startBy: x, open: open, max: INVITE_MAX, minutes: INVITE_MINUTES };
+}
+function apiInvites_(b) {
+  var u = auth_(b.token, "collector");
+  return { open: openInvites_(u.username), max: INVITE_MAX, minutes: INVITE_MINUTES };
+}
+/** The collector closes a QR that will not be used (the respondent left, the QR was shown by mistake). */
+function apiCancelInvite_(b) {
+  var u = auth_(b.token, "collector"), hit = null;
+  invRows_().forEach(function (o) { if (o.id === String(b.id) && o.user === u.username) hit = o; });
+  if (!hit) throw new Error("ไม่พบ QR นี้ในบัญชีของคุณ");
+  if (!hit.status) sheet_(INV_SHEET, INV_HEADER).getRange(hit.row, 5).setValue("ยกเลิก");
+  log_(u.username, "ยกเลิก QR " + hit.id);
+  return { open: openInvites_(u.username), max: INVITE_MAX, minutes: INVITE_MINUTES };
+}
+/** Checks an invite; returns its payload, or throws. graceMin: extra minutes allowed when the answers are sent. */
+function readInvite_(t, graceMin) {
   var p = String(t || "").split(".");
-  if (p.length !== 2 || !safeEq_(sign_(p[0]), p[1])) throw new Error("QR นี้ไม่ถูกต้อง ขอ QR ใหม่จากผู้เก็บข้อมูล");
-  var o; try { o = JSON.parse(unb64_(p[0])); } catch (e) { throw new Error("QR นี้ไม่ถูกต้อง ขอ QR ใหม่จากผู้เก็บข้อมูล"); }
-  if (o.k !== "inv") throw new Error("QR นี้ไม่ถูกต้อง ขอ QR ใหม่จากผู้เก็บข้อมูล");
-  if (o.x < Date.now()) throw new Error("QR นี้หมดอายุแล้ว (ใช้ได้ " + INVITE_DAYS + " วัน) ขอ QR ใหม่จากผู้เก็บข้อมูล");
+  if (p.length !== 2 || !safeEq_(sign_(p[0]), p[1])) throw new Error("QR นี้ไม่ถูกต้อง ขอ QR ใหม่จากผู้เก็บข้อมูลที่อยู่ตรงนั้น");
+  var o; try { o = JSON.parse(unb64_(p[0])); } catch (e) { throw new Error("QR นี้ไม่ถูกต้อง ขอ QR ใหม่จากผู้เก็บข้อมูลที่อยู่ตรงนั้น"); }
+  if (o.k !== "inv") throw new Error("QR นี้ไม่ถูกต้อง ขอ QR ใหม่จากผู้เก็บข้อมูลที่อยู่ตรงนั้น");
+  if (o.x + (graceMin || 0) * 6e4 < Date.now()) throw new Error("QR นี้หมดเวลาแล้ว ขอ QR ใหม่จากผู้เก็บข้อมูลที่อยู่ตรงนั้น");
+  var row = null; invRows_().forEach(function (r) { if (r.id === String(o.i)) row = r; });
+  if (!row) throw new Error("QR นี้ใช้ไม่ได้แล้ว ขอ QR ใหม่จากผู้เก็บข้อมูลที่อยู่ตรงนั้น");
+  if (row.status) throw new Error("ผู้เก็บข้อมูลยกเลิก QR นี้แล้ว");
   var u = findUser_(o.u);
   if (!u || !u.active || u.enumerator !== o.e) throw new Error("ผู้เก็บข้อมูลที่ให้ QR นี้ไม่ได้อยู่ในระบบแล้ว ขอ QR ใหม่");
   return o;
@@ -198,5 +237,5 @@ function inviteUsed_(id) {
 function apiCheckInvite_(b) {
   var o = readInvite_(b.invite);
   if (inviteUsed_(o.i)) throw new Error("QR นี้ถูกใช้ตอบไปแล้ว หนึ่ง QR ใช้ได้หนึ่งคน ขอ QR ใหม่จากผู้เก็บข้อมูล");
-  return { enumerator: o.e, venue: o.v, expires: o.x };
+  return { enumerator: o.e, venue: o.v, startBy: o.x, minutes: INVITE_MINUTES };
 }

@@ -306,7 +306,7 @@
     const m = st.meta.mode, e = $("#enum-q"), g = $("#group-q"), go = $("#start"), c = $("#consent");
     if (e) e.hidden = m == null; if (g) g.hidden = !(m === 0 || m === 1);
     if (go && !INV) go.textContent = m === 3 ? "สร้าง QR ให้ผู้ตอบ" : "เริ่มตอบ";
-    if (c) c.innerHTML = m === 3 && !INV ? "ให้ QR หลังอธิบายโครงการและผู้ตอบยินยอมแล้วเท่านั้น ผู้ตอบสแกนแล้วทำเองในโทรศัพท์ของเขา คำตอบนับเป็นชุดของคุณ หนึ่ง QR ใช้ได้ 1 คน ภายใน 7 วัน"
+    if (c) c.innerHTML = m === 3 && !INV ? "ให้ QR หลังอธิบายโครงการและผู้ตอบยินยอมแล้วเท่านั้น ผู้ตอบสแกนแล้วทำเองในโทรศัพท์ของเขาต่อหน้าคุณ คำตอบนับเป็นชุดของคุณ หนึ่ง QR ใช้ได้ 1 คน ต้องเริ่มตอบภายใน 2 ชั่วโมง และเปิด QR พร้อมกันได้ไม่เกิน 3 ใบ"
       : "เริ่มได้เมื่อผู้ตอบได้รับเอกสารชี้แจงและยินยอมเข้าร่วมแล้วเท่านั้น";
   }
 
@@ -320,43 +320,81 @@
       if (!j.ok) { box.className = "notice"; box.innerHTML = `<b>QR นี้ใช้ไม่ได้</b> ${esc(j.error || "")}`; go.disabled = true; return; }
       invInfo = { enumerator: j.enumerator, venue: j.venue };
     }
-    box.innerHTML = `<b>แบบสอบถามนี้ส่งมาจากผู้เก็บข้อมูลเลข ${invInfo.enumerator}</b><br><span class="small">ท่านตอบบนโทรศัพท์ของท่านเองได้เลย ไม่ต้องเข้าสู่ระบบ ใช้เวลาราว 25–30 นาที ปิดแล้วกลับมาตอบต่อจาก QR เดิมได้ภายใน 7 วัน (เริ่มใหม่ตั้งแต่ต้น)</span>${INV === "demo" || DEMO ? `<br><span class="small">โหมดตัวอย่าง: QR สาธิต ไม่บันทึกคำตอบ</span>` : ""}`;
+    box.innerHTML = `<b>แบบสอบถามนี้ส่งมาจากผู้เก็บข้อมูลเลข ${invInfo.enumerator}</b><br><span class="small">ท่านตอบบนโทรศัพท์ของท่านเองได้เลย ไม่ต้องเข้าสู่ระบบ ใช้เวลาราว 25–30 นาที ขอให้ตอบให้เสร็จตอนนี้ ถ้ามีข้อสงสัยถามผู้เก็บข้อมูลที่อยู่ตรงนี้ได้</span>${INV === "demo" || DEMO ? `<br><span class="small">โหมดตัวอย่าง: QR สาธิต ไม่บันทึกคำตอบ</span>` : ""}`;
     chips();
   }
 
-  /* ---------- collector: QR for a respondent who wants to answer on their own phone ----------
-     Each QR works for one respondent, for 7 days. A few are fetched at once so the next one shows even when the signal drops. */
-  const invKey = () => "inv.stash." + ((Auth.get() || {}).user || {}).username;
-  async function nextInvite(venue) {
-    const se = Auth.get();
-    if (DEMO || !se || se.demo) return { t: "demo", demo: true };
-    let stash = store.get(invKey(), []).filter(x => x.exp > Date.now() + 864e5 && x.venue === venue);
-    if (!stash.length) {
-      const j = await Auth.api("invite", { venue, n: 5 });
-      if (!j.ok) throw new Error(j.error || "สร้าง QR ไม่สำเร็จ");
-      stash = j.invites.map(t => ({ t, venue, exp: Date.now() + j.days * 864e5 }));
+  /* ---------- collector: QR for a respondent who answers on their own phone, on the spot ----------
+     As submitted to the EC: one QR per respondent, shown after consent, answered in the collector's presence,
+     no more than 3 respondents at a time per collector, no link handed out. The back end enforces the limit;
+     this device keeps the QR it issued (for 2 hours) so a closed dialog can show the same QR again. */
+  const QMAX = 3, QMIN = 120;
+  const invKey = () => "inv.mine." + ((Auth.get() || {}).user || {}).username;
+  const keptQR = () => store.get(invKey(), []).filter(x => x.startBy > Date.now());
+  const keepQR = (list) => store.set(invKey(), list.filter(x => x.startBy > Date.now()));
+  let qrOpen = null;          // [{id, issued, startBy}] from the back end (or the demo list)
+  const isDemoQR = () => { const se = Auth.get(); return DEMO || !se || se.demo; };
+  async function qrApi(action, body = {}) {
+    if (!isDemoQR()) { const j = await Auth.api(action, body); if (!j.ok) throw new Error(j.error || "ติดต่อระบบไม่ได้"); return j; }
+    let open = store.get("inv.demo", []).filter(x => x.startBy + 60 * 6e4 > Date.now());           // demo: the same rule, on this device only
+    if (action === "invite") {
+      if (open.length >= QMAX) throw new Error(`มี QR ที่ยังเปิดอยู่ครบ ${QMAX} ใบแล้ว ผู้เก็บหนึ่งคนดูแลผู้ตอบพร้อมกันได้ไม่เกิน ${QMAX} คน รอให้ผู้ตอบส่งคำตอบ หรือยกเลิก QR ใบที่ไม่ได้ใช้ก่อน`);
+      const it = { id: "demo" + Math.random().toString(36).slice(2, 8), issued: Date.now(), startBy: Date.now() + QMIN * 6e4 };
+      open.push(it); store.set("inv.demo", open); return { invite: "demo", id: it.id, startBy: it.startBy, open, max: QMAX, minutes: QMIN };
     }
-    const it = stash.shift(); store.set(invKey(), stash); return it;
+    if (action === "cancelInvite") { open = open.filter(x => x.id !== body.id); store.set("inv.demo", open); }
+    return { open, max: QMAX, minutes: QMIN };
   }
-  async function showQR() {
-    if (st.meta.venue == null || st.meta.venue === 4) { toast("เลือกสถานที่พบผู้ตอบก่อนสร้าง QR"); $("#venue-q").scrollIntoView({ block: "center" }); return; }
+  const hhmm = t => new Date(t).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+  function qrDialog() {
     let dlg = $("#qrdlg");
     if (!dlg) { dlg = document.createElement("dialog"); dlg.id = "qrdlg"; dlg.className = "qrdlg"; document.body.appendChild(dlg); }
-    dlg.innerHTML = `<div class="qr-in"><p class="small muted">กำลังสร้าง QR…</p></div>`; dlg.showModal();
-    let it;
-    try { it = await nextInvite(st.meta.venue); } catch (e) { dlg.innerHTML = `<div class="qr-in"><p class="notice">${esc(e.message)}</p><button class="btn" id="qrx">ปิด</button></div>`; $("#qrx").onclick = () => dlg.close(); return; }
-    const url = location.origin + location.pathname + "?q=" + encodeURIComponent(it.t);
-    const qr = qrcode(0, "M"); qr.addData(url); qr.make();
-    const se = Auth.get(), V = { 1: "ตลาดหรือจุดที่คนพลุกพล่าน", 2: "จุดรวมตัวของชุมชน", 3: "เยี่ยมครัวเรือน" };
-    dlg.innerHTML = `<div class="qr-in">
-      <h3>ให้ผู้ตอบสแกนด้วยโทรศัพท์ของตัวเอง</h3>
+    if (!dlg.open) dlg.showModal();
+    return dlg;
+  }
+  function openList() {
+    const mine = keptQR();
+    if (!qrOpen || !qrOpen.length) return `<p class="small muted">ยังไม่มี QR ที่เปิดอยู่</p>`;
+    return `<table class="qrlist"><tbody>${qrOpen.map((o, k) => `<tr><td>ใบที่ ${k + 1}</td><td class="num">ออก ${hhmm(o.issued)} · เริ่มได้ถึง ${hhmm(o.startBy)}</td>
+      <td>${mine.some(x => x.id === o.id) ? `<button class="btn ghost small" data-show="${esc(o.id)}">แสดง</button>` : ""}<button class="btn ghost small" data-cancel="${esc(o.id)}">ยกเลิก</button></td></tr>`).join("")}</tbody></table>`;
+  }
+  function drawQR(it, msg) {
+    const dlg = qrDialog(), se = Auth.get(), V = { 1: "ตลาดหรือจุดที่คนพลุกพล่าน", 2: "จุดรวมตัวของชุมชน", 3: "เยี่ยมครัวเรือน" };
+    const full = qrOpen && qrOpen.length >= QMAX;
+    let qrHtml = "";
+    if (it) {
+      const url = location.origin + location.pathname + "?q=" + encodeURIComponent(it.t);
+      const qr = qrcode(0, "M"); qr.addData(url); qr.make();
+      qrHtml = `<h3>ให้ผู้ตอบสแกนด้วยโทรศัพท์ของตัวเอง</h3>
       <div class="qr-img">${qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true })}</div>
-      <p class="small">ใช้ได้ <b>1 คน</b> ภายใน 7 วัน · ผู้เก็บเลข ${se ? se.user.enumerator : 1} · ${V[st.meta.venue]}</p>
-      <p class="small muted">ให้ QR หลังอธิบายโครงการและผู้ตอบยินยอมแล้วเท่านั้น รหัสผู้ตอบจะออกเมื่อเขาส่งคำตอบ และขึ้นในหน้า “เข้าสู่ระบบ” ของคุณ${it.demo ? " · โหมดตัวอย่าง: QR สาธิต" : ""}</p>
-      <div class="qr-btns"><button class="btn" id="qrcopy">คัดลอกลิงก์ (ส่งทาง LINE)</button><button class="btn primary" id="qrnext">QR ใบถัดไป</button><button class="btn ghost" id="qrx">ปิด</button></div></div>`;
+      <p class="small">ใช้ได้ <b>1 คน</b> · ต้องเริ่มตอบภายใน ${hhmm(it.startBy)} น. · ผู้เก็บเลข ${se ? se.user.enumerator : 1} · ${V[it.venue] || ""}</p>`;
+    } else qrHtml = `<h3>QR สำหรับผู้ตอบที่ตอบเองบนโทรศัพท์</h3>`;
+    if (msg) qrHtml += `<p class="notice small" role="alert">${esc(msg)}</p>`;
+    dlg.innerHTML = `<div class="qr-in">${qrHtml}
+      <p class="small muted">ให้ QR หลังอธิบายโครงการและผู้ตอบยินยอมแล้วเท่านั้น ผู้ตอบทำต่อหน้าคุณจนส่งเสร็จ ห้ามส่งลิงก์หรือรูป QR ให้ไปตอบทีหลัง${it && it.demo ? " · โหมดตัวอย่าง: QR สาธิต" : ""}</p>
+      <div class="qrbox"><p class="small"><b>QR ที่เปิดอยู่ ${qrOpen ? qrOpen.length : 0}/${QMAX}</b> <span class="muted">(ดูแลผู้ตอบพร้อมกันได้ไม่เกิน ${QMAX} คน ใบจะปิดเองเมื่อผู้ตอบส่งคำตอบ)</span></p>${openList()}</div>
+      <div class="qr-btns"><button class="btn primary" id="qrnext" ${full ? "disabled" : ""}>${full ? `เปิดครบ ${QMAX} ใบแล้ว` : "QR สำหรับผู้ตอบคนถัดไป"}</button><button class="btn ghost" id="qrx">ปิด</button></div></div>`;
     $("#qrx").onclick = () => dlg.close();
-    $("#qrnext").onclick = () => showQR();
-    $("#qrcopy").onclick = async e => { try { await navigator.clipboard.writeText(url); e.target.textContent = "คัดลอกแล้ว"; } catch (x) { prompt("คัดลอกลิงก์นี้", url); } };
+    $("#qrnext").onclick = () => showQR(true);
+    dlg.querySelectorAll("[data-show]").forEach(b => b.onclick = () => { const k = keptQR().find(x => x.id === b.dataset.show); if (k) drawQR(k); });
+    dlg.querySelectorAll("[data-cancel]").forEach(b => b.onclick = async () => {
+      if (!confirmCancel(b)) return;
+      try { const j = await qrApi("cancelInvite", { id: b.dataset.cancel }); qrOpen = j.open; keepQR(keptQR().filter(x => x.id !== b.dataset.cancel)); drawQR(it && it.id !== b.dataset.cancel ? it : null); }
+      catch (e) { drawQR(it, e.message); }
+    });
+  }
+  function confirmCancel(b) { if (b.dataset.sure) return true; b.dataset.sure = "1"; b.textContent = "แตะอีกครั้งเพื่อยกเลิก"; setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = "ยกเลิก"; } }, 4000); return false; }
+  async function showQR(fresh) {
+    if (st.meta.venue == null || st.meta.venue === 4) { toast("เลือกสถานที่พบผู้ตอบก่อนสร้าง QR"); $("#venue-q").scrollIntoView({ block: "center" }); return; }
+    const dlg = qrDialog(); dlg.innerHTML = `<div class="qr-in"><p class="small muted">กำลังสร้าง QR…</p></div>`;
+    try {
+      if (!fresh) { const j = await qrApi("invites"); qrOpen = j.open; if (qrOpen.length >= QMAX) { drawQR(null); return; } }
+      const j = await qrApi("invite", { venue: st.meta.venue });
+      qrOpen = j.open;
+      const it = { id: j.id, t: j.invite, venue: st.meta.venue, startBy: j.startBy, demo: j.invite === "demo" };
+      if (!it.demo) keepQR(keptQR().concat([it]));
+      drawQR(it);
+    } catch (e) { drawQR(null, e.message); }
   }
 
   /* ---------- enumerator sign-in inside the intro ---------- */
