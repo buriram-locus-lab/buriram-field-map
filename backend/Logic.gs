@@ -116,7 +116,7 @@ function rowForHeader(header, obj) {
   return header.map(function (h) { return obj[h] === undefined || obj[h] === null ? "" : obj[h]; });
 }
 
-/** Quota cell of a respondent: 0 Gen Z ชาย · 1 Gen Z หญิง · 2 รุ่นอื่น ชาย · 3 รุ่นอื่น หญิง (sex 3 = ไม่ระบุ → -1) */
+/** Quota cell of a respondent: 0 Gen Z ชาย · 1 Gen Z หญิง · 2 รุ่นอื่น ชาย · 3 รุ่นอื่น หญิง (sex 3 เพศหลากหลาย · 4 ไม่ประสงค์ระบุ ไม่นับเข้าโควตาเพศ) */
 function quotaCell(gen, sex) { if (sex !== 1 && sex !== 2) return -1; return (gen === "Z" ? 0 : 2) + (sex === 2 ? 1 : 0); }
 
 if (typeof module !== "undefined") module.exports = { lguCodeFor: lguCodeFor, issueCode: issueCode, CODE_RE: CODE_RE, genFromAge: genFromAge, checkCode: checkCode, nextOnlineSeq: nextOnlineSeq, codeKey: codeKey, nextFreeSeq: nextFreeSeq, sameAnswerShare: sameAnswerShare, findLikelyDuplicate: findLikelyDuplicate, flattenRecord: flattenRecord, rowForHeader: rowForHeader, quotaCell: quotaCell };

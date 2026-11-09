@@ -1,4 +1,4 @@
-/* Web survey (questionnaire v1.8). Demo mode saves nothing; live mode posts one JSON record to CONFIG.endpoint after EC approval.
+/* Web survey (questionnaire v1.9). Demo mode saves nothing; live mode posts one JSON record to CONFIG.endpoint after EC approval.
    Every form is completed in front of a collector: read aloud (1), keyed from paper (0), or on the respondent's phone from a collector's QR (3).
    Remote online answering (mode 2) is closed. Knowledge items 29–33 carry no answer key here: scoring happens only in analysis.
    Items may carry `when` (shown only if the rule holds; hidden answers are dropped) and `auto` (value recorded while hidden). */
@@ -12,6 +12,7 @@
     set(k, v) { try { localStorage.setItem("bfm." + k, JSON.stringify(v)); } catch (e) {} },
   };
   const S = window.SURVEY;
+  const DN = n => (S.dn && S.dn[n]) || n;   // printed item number (v1.9 renumbered after cuts); internal keys keep the v1.8 numbers
   // a one-time QR from a collector: ?q=<invite>. The respondent answers on their own phone; the code carries that collector's number.
   const INV = new URLSearchParams(location.search).get("q");
   let invInfo = null;          // {enumerator, venue} once checked
@@ -52,7 +53,7 @@
   const optText = t => t.replace(/\s*_{2,}\s*/g, "").trim();
   function issueText() {
     const c = st.ans["21"];
-    if (!c) return "ปัญหาที่ท่านเลือกไว้ในข้อ 21";
+    if (!c) return `ปัญหาที่ท่านเลือกไว้ในข้อ ${DN("21")}`;
     if (c === 12) return (st.txt["21"] || "").trim() || "เรื่องที่ท่านระบุ";
     return PARTS[2].items.find(i => i.n === "21").o.find(o => o.c === c).t;
   }
@@ -127,12 +128,10 @@
           <label class="opt"><input type="radio" name="q_12b" value="10" ${b === 10 ? "checked" : ""}><span class="box" aria-hidden="true"></span><span class="ot">ไม่ประสงค์ตอบ</span></label></div>
           ${b != null ? `<button type="button" class="btn ghost small" id="brkclear">ใส่เป็นตัวเลขแทน</button>` : ""}</details>`;
       }
-      case "conf": {
-        const v = st.ans[it.n], n = v == null ? -1 : v / 10;
-        return `<div class="beans" role="radiogroup" aria-label="ความเชื่อมั่น 0 ถึง 100">
-          <label class="bz${v === 0 ? " on" : ""}"><input type="radio" name="q_${it.n}" value="0" ${v === 0 ? "checked" : ""}><b class="num">0</b><span>ไม่เชื่อมั่นเลย</span></label>
-          <span class="bwrap">${Array.from({ length: 10 }, (_, k) => `<label class="bk${k < n ? " on" : ""}" title="${(k + 1) * 10}"><input type="radio" name="q_${it.n}" value="${(k + 1) * 10}" ${v === (k + 1) * 10 ? "checked" : ""}>${BEAN(k < n)}<span class="sr">${(k + 1) * 10}</span></label>`).join("")}</span></div>
-          <p class="beanval live">${v == null ? `<span class="muted">กดเมล็ดถั่วตามความเชื่อมั่น (ยังไม่ได้เลือก)</span>` : `<b class="num">${n}</b> เมล็ด · เชื่อมั่น <b class="num">ร้อยละ ${v}</b>`}</p>`;
+      case "conf": {                     // advisor (9 Nov 2026): respondents say any number 0–100, not 10 beans
+        const v = st.ans[it.n];
+        return `<div class="inrow"><span class="unit">ร้อยละ</span><input class="txt short num" type="number" inputmode="numeric" name="q_${it.n}" min="0" max="100" step="1" value="${v != null ? v : ""}" aria-label="ความเชื่อมั่น ร้อยละ 0 ถึง 100"></div>
+          <p class="small muted">ตัวเลขใดก็ได้ตั้งแต่ 0 ถึง 100 · 0 = ไม่เชื่อมั่นเลย · 100 = เชื่อมั่นเต็มที่</p>`;
       }
       case "enum": {
         return it.parts.filter(p => !p.group || st.meta.group.size > 1).map(p => `<p class="sub">${esc(p.t)}</p><div class="opts row">${p.o.map(o => {
@@ -182,8 +181,8 @@
           </div>`;
       }
       case "ipc": {
-        const L = [[-3, "ไม่เห็นด้วยอย่างยิ่ง"], [-2, "ไม่เห็นด้วย"], [-1, "ไม่เห็นด้วยเล็กน้อย"], [1, "เห็นด้วยเล็กน้อย"], [2, "เห็นด้วย"], [3, "เห็นด้วยอย่างยิ่ง"]];
-        return `<div class="ipc" role="radiogroup">${L.map(([c, t]) => `<label class="ip${c < 0 ? " neg" : " pos"}"><input type="radio" name="q_${it.n}" value="${c}" ${st.ans[it.n] === c ? "checked" : ""}><b class="num">${c > 0 ? "+" + c : "−" + (-c)}</b><span>${t}</span></label>`).join("")}</div>`;
+        const L = [[-3, "ไม่เห็นด้วยมาก"], [-2, "ไม่เห็นด้วยปานกลาง"], [-1, "ไม่เห็นด้วยเล็กน้อย"], [1, "เห็นด้วยเล็กน้อย"], [2, "เห็นด้วยปานกลาง"], [3, "เห็นด้วยมาก"]];   // same labels as the paper form and the read-aloud instruction
+        return `<div class="ipc" role="radiogroup">${L.map(([c, t]) => `<label class="ip${c < 0 ? " neg" : " pos"}"><input type="radio" name="q_${it.n}" value="${c}" ${st.ans[it.n] === c ? "checked" : ""}><span>${t}</span></label>`).join("")}</div>`;
       }
     }
     return "";
@@ -210,7 +209,7 @@
     if (PARTS[5].items[0] === it) pre = `<div class="notice acc"><b>ไม่มีคำตอบถูกหรือผิด</b><br><span class="small">ขอให้บอกก่อนว่าเห็นด้วยหรือไม่เห็นด้วย แล้วบอกว่าเล็กน้อย ปานกลาง หรือมาก ไม่มีตัวเลือกตรงกลาง</span></div>`;
     const hint = it.hint ? `<p class="hint">${esc(it.hint)}</p>` : "";
     const q = esc(it.q).replace(/\(ตอบได้มากกว่า 1 ข้อ\)/, '<span class="tag">ตอบได้หลายข้อ</span>').replace(/\(เลือก 1 ข้อ\)/, '<span class="tag">เลือก 1 ข้อ</span>');
-    return `${pre}<fieldset class="q t-${it.type}" id="q-${it.n}" data-n="${it.n}" ${visible(it) ? "" : "hidden"}><legend class="qh"><span class="qn num">${it.n}</span><span class="qt">${q}</span></legend>${hint}<div class="qa">${body(it)}</div></fieldset>`;
+    return `${pre}<fieldset class="q t-${it.type}" id="q-${it.n}" data-n="${it.n}" ${visible(it) ? "" : "hidden"}><legend class="qh"><span class="qn num">${DN(it.n)}</span><span class="qt">${q}</span></legend>${hint}<div class="qa">${body(it)}</div></fieldset>`;
   }
 
   /* ---------- validation ---------- */
@@ -447,7 +446,7 @@
     } else if (it.type === "income") {
       st.ans["12"] = t.value === "" ? undefined : +t.value;
     } else if (it.type === "conf") {
-      st.ans[n] = +t.value; const qa = $(`#q-${n} .qa`); qa.innerHTML = body(it); const inp = $(`input[value="${t.value}"]`, qa); if (inp) inp.focus();
+      const x = t.value === "" ? undefined : Math.round(+t.value); st.ans[n] = x == null || isNaN(x) ? undefined : Math.max(0, Math.min(100, x));
     } else if (it.type === "lgu") {
       st.ans[n] = t.value;
     } else {
@@ -517,7 +516,7 @@
         case "lgu": { const d = st.ans["3"] || {}; const L = S.lgus.filter(l => l.d === d.a && (!d.t || l.t.includes(d.t))); st.ans["4"] = L.length ? pick(L).n : "unsure"; break; }
         case "num": st.ans[it.n] = 1 + Math.floor(R() * 6); break;
         case "income": if (R() < .7) st.ans["12"] = 3000 + Math.floor(R() * 40) * 1000; else st.ans["12b"] = 1 + Math.floor(R() * 9); break;
-        case "conf": st.ans[it.n] = 10 * Math.floor(R() * 11); break;
+        case "conf": st.ans[it.n] = Math.floor(R() * 101); break;
         case "enum": it.parts.forEach(p => { st.ans[p.k] = p.type === "check" ? [1] : 1; }); break;
         case "check": { const o = it.o.filter(o => !it.excl.includes(o.c)); st.ans[it.n] = shuffle(o).slice(0, 1 + Math.floor(R() * 2)).map(o => o.c).sort((a, b) => a - b); break; }
         case "ipc": st.ans[it.n] = pick([-3, -2, -1, 1, 2, 3]); break;
@@ -651,8 +650,8 @@
     if (c.stage === "intro") {
       app.innerHTML = partHead(3) + `<section class="panel">
         <p class="lead">ต่อไปจะให้ท่านดูผู้สมัคร ส.ส. เขตสมมติ 5 คู่ ทุกคนแต่งขึ้น พรรค A ถึง D ก็เป็นพรรคสมมติ ให้ท่านเลือกคนที่จะลงคะแนนให้ในแต่ละคู่ ไม่มีคำตอบถูกหรือผิด</p>
-        <ul class="bul"><li>ภาพผู้สมัครเป็นภาพวาดประกอบเท่านั้น</li><li>“เรื่องของท่าน” ในคู่ผู้สมัคร คือ <b>${esc(issueText())}</b> ที่ท่านเลือกไว้ในข้อ 21 (ข้อ 35: ระบบเติมให้แล้ว)</li></ul>
-        <fieldset class="q" id="q-34"><legend class="qh"><span class="qn num">34</span><span class="qt">ตรวจความเข้าใจ: ผู้สมัครที่จะเห็นต่อไปนี้เป็นคนจริงหรือคนสมมติ</span></legend>
+        <ul class="bul"><li>ภาพผู้สมัครเป็นภาพวาดประกอบเท่านั้น</li><li>“เรื่องของท่าน” ในคู่ผู้สมัคร คือ <b>${esc(issueText())}</b> ที่ท่านเลือกไว้ในข้อ ${DN("21")} (ข้อ ${DN("35")}: ระบบเติมให้แล้ว)</li></ul>
+        <fieldset class="q" id="q-34"><legend class="qh"><span class="qn num">${DN("34")}</span><span class="qt">ตรวจความเข้าใจ: ผู้สมัครที่จะเห็นต่อไปนี้เป็นคนจริงหรือคนสมมติ</span></legend>
           <div class="opts row"><label class="opt"><input type="radio" name="cmp" value="1"><span class="box"></span><span class="ot">คนสมมติ</span></label><label class="opt"><input type="radio" name="cmp" value="2"><span class="box"></span><span class="ot">คนจริง</span></label><label class="opt"><input type="radio" name="cmp" value="3"><span class="box"></span><span class="ot">ไม่แน่ใจ</span></label></div>
           <p class="live small" id="cmpfb">${c.fails ? `<span class="bad">ผู้สมัครทุกคนเป็นคนสมมติ ขอให้อ่านคำชี้แจงอีกครั้งแล้วตอบใหม่</span>` : ""}</p></fieldset>
         <div class="nav">${navBtns("เริ่มคู่ที่ 1")}</div></section>`;
@@ -663,7 +662,7 @@
         if (!v) { $("#q-34").classList.add("miss"); return; }
         if (v.value === "1") { st.ans["34"] = c.fails ? 2 : 1; c.stage = "task"; c.i = 0; return render(); }
         c.fails++;
-        if (c.fails >= 2) { st.ans["34"] = 0; toast("ข้ามการเลือกผู้สมัคร ไปส่วนที่ 5 (ข้อ 46)"); st.part = 4; return render(); }
+        if (c.fails >= 2) { st.ans["34"] = 0; toast(`ข้ามการเลือกผู้สมัคร ไปส่วนที่ 5 (ข้อ ${DN("46")})`); st.part = 4; return render(); }
         $("#cmpfb").innerHTML = `<span class="bad">ผู้สมัครทุกคนเป็นคนสมมติ ขอให้อ่านคำชี้แจงอีกครั้งแล้วตอบใหม่</span>`;
         v.checked = false;
       };
@@ -676,7 +675,7 @@
       <div class="conj-head"><p class="eyebrow num">คู่ที่ ${c.i + 1} / ${c.tasks.length}</p>
         <div class="dots">${c.tasks.map((x, i) => `<i class="${x.choice ? "on" : ""}${i === c.i ? " cur" : ""}"></i>`).join("")}</div></div>
       ${pre}
-      <h3 class="ask"><span class="qn num">${t.n}</span> ถ้าท่านต้องเลือกระหว่างผู้สมัครสองคนนี้ ท่านจะลงคะแนนให้คนใด</h3>
+      <h3 class="ask"><span class="qn num">${DN(t.n)}</span> ถ้าท่านต้องเลือกระหว่างผู้สมัครสองคนนี้ ท่านจะลงคะแนนให้คนใด</h3>
       ${pairMarks(t) ? `<p class="dfnote"><mark class="df">ข้อความที่ขีดเน้น</mark> คือจุดที่สองคนนี้ต่างกัน นอกนั้นเหมือนกัน</p>` : ""}
       <div class="pair">${candCard(t.L, "L", t, "ก")}<div class="vs" aria-hidden="true">หรือ</div>${candCard(t.Rt, "R", t, "ข")}</div>
       <div class="nav"><button type="button" class="btn ghost" id="back">← ย้อนกลับ</button>
@@ -739,7 +738,7 @@
   function record() {
     const sc = scores();
     return {
-      meta: { id: st.meta.id, code: null, test: DEMO || TESTRUN, enumerator: st.meta.enumerator, collector: st.meta.mode === 0 || st.meta.mode === 1 ? st.meta.collector : "", cdate: st.meta.cdate, collectedBE: beYear(st.meta.cdate || todayISO()), started: st.meta.started, finished: new Date().toISOString(), seconds: Math.round((performance.now() - (st.t0 || 0)) / 1000), mode: st.meta.mode, venue: st.meta.venue, design: st.meta.design, version: st.meta.version, order: st.meta.order, gsize: st.meta.mode === 3 ? "" : st.meta.group.size, gcode: st.meta.group.size > 1 ? st.meta.group.code : "", instrument: "v1.8" },
+      meta: { id: st.meta.id, code: null, test: DEMO || TESTRUN, enumerator: st.meta.enumerator, collector: st.meta.mode === 0 || st.meta.mode === 1 ? st.meta.collector : "", cdate: st.meta.cdate, collectedBE: beYear(st.meta.cdate || todayISO()), started: st.meta.started, finished: new Date().toISOString(), seconds: Math.round((performance.now() - (st.t0 || 0)) / 1000), mode: st.meta.mode, venue: st.meta.venue, design: st.meta.design, version: st.meta.version, order: st.meta.order, gsize: st.meta.mode === 3 ? "" : st.meta.group.size, gcode: st.meta.group.size > 1 ? st.meta.group.code : "", instrument: "v1.9" },
       answers: { ...st.ans }, text: { ...st.txt },
       conjoint: (st.cj.tasks || []).map((t, i) => ({ task: i + 1, pair: t.k, item: t.n, chosen: t.choice, ms: t.at, left: strip(t.L, t.design), right: strip(t.Rt, t.design) })),
       ipc: { I: sc.I, P: sc.P, C: sc.C, complete: sc.complete },
