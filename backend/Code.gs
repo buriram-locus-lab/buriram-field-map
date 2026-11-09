@@ -46,6 +46,7 @@ var API = {
   data: apiData_, detail: apiDetail_, contacts: apiContacts_, deleteContacts: apiDeleteContacts_, exportCsv: apiExport_,
   users: apiUsers_, addUser: apiAddUser_, resetPassword: apiResetPassword_, setUser: apiSetUser_,
   seedTest: apiSeedTest_, clearTest: apiClearTest_, invite: apiInvite_, checkInvite: apiCheckInvite_,
+  progress: apiProgress_,
 };
 function doPost(e) {
   var lock = LockService.getScriptLock();
@@ -134,6 +135,23 @@ function apiMine_(b) {
   var rows = v.slice(1).filter(function (r) { return String(r[c.who]) === u.username; }).slice(-60).reverse()
     .map(function (r) { return { code: String(r[c.code]), ref: String(r[c.rid]), received: r[c.rec] ? new Date(r[c.rec]).toISOString() : "", test: +r[c.test] === 1 }; });
   return { rows: rows };
+}
+
+/* ---------------- progress for the field map (any signed-in account) ----------------
+   Counts only: per LAO code, [Gen Z men, Gen Z women, other men, other women, sex not counted in the quota]. No answers, codes or names leave the sheet. */
+function apiProgress_(b) {
+  auth_(b.token, "any");
+  var v = sheet_(SHEETS.responses, RESP_HEADER).getDataRange().getValues(), h = v[0].map(String);
+  var ci = h.indexOf("code"), ti = h.indexOf("test"), si = h.indexOf("q2");
+  var real = {}, test = {};
+  v.slice(1).forEach(function (r) {
+    var m = CODE_RE.exec(String(r[ci])); if (!m) return;
+    var t = +r[ti] === 1 ? test : real, lc = m[2] + m[3];
+    var a = t[lc] || (t[lc] = [0, 0, 0, 0, 0]);
+    var cell = quotaCell(m[1] === "Z" ? "Z" : "O", si >= 0 ? +r[si] : 0);
+    a[cell >= 0 ? cell : 4]++;
+  });
+  return { real: real, test: test, accept: props_().getProperty("ACCEPT") === "1", at: new Date().toISOString() };
 }
 
 /* ---------------- data (admin only) ---------------- */

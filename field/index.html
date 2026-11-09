@@ -136,6 +136,23 @@ svg#map.dragging{cursor:grabbing}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .sw{width:14px;height:14px;border-radius:3px;display:inline-block;border:1px solid var(--line)}
 
+/* "where am I": marker drawn in map units; text card above the panel */
+.zoomctl button.loc{font-size:1rem}
+.zoomctl button.loc[aria-pressed="true"]{background:var(--focus);color:#fff;border-color:var(--focus)}
+.me-acc{fill:var(--focus);fill-opacity:.14;stroke:var(--focus);stroke-opacity:.5;pointer-events:none}
+.me-dot{fill:var(--focus);stroke:var(--surface);pointer-events:none}
+.me-ring{fill:none;stroke:var(--focus);pointer-events:none;transform-box:fill-box;transform-origin:center;animation:mering 1.8s ease-out infinite}
+@keyframes mering{from{opacity:.7;transform:scale(1)}to{opacity:0;transform:scale(3.2)}}
+@media (prefers-reduced-motion: reduce){.me-ring{animation:none;opacity:0}}
+.card.where{border-color:var(--focus);border-width:2px}
+.mehere{position:absolute;left:10px;top:10px;max-width:calc(100% - 64px);border:1px solid var(--focus);background:var(--surface);color:var(--ink);border-radius:8px;padding:5px 10px;font-size:.84rem;text-align:left;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.mehere b{color:var(--focus)}
+.card.where h3{font-size:1.15rem}
+.card.where .row{display:flex;flex-wrap:wrap;gap:8px}
+.wq{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.wq div{background:var(--sunk);border-radius:8px;padding:6px 8px;display:grid;gap:2px;font-size:.8rem;color:var(--muted)}
+.wq b{font:600 1rem var(--f-mono);color:var(--ink)}
+@media (max-width:560px){.wq{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .panel{display:grid;gap:14px;min-width:0}
 .crumbs{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;font-size:.86rem}
 .crumbs button{border:0;background:none;padding:2px 4px;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
@@ -276,13 +293,16 @@ footer{margin-top:36px;font-size:.8rem;color:var(--muted);display:grid;gap:6px;m
         <button id="zin" aria-label="ซูมเข้า">+</button>
         <button id="zout" aria-label="ซูมออก">−</button>
         <button id="zall" aria-label="กลับภาพรวม 4 อำเภอ" style="font-size:.85rem">⤢</button>
+        <button id="zloc" class="loc" aria-pressed="false" aria-label="ระบุตำแหน่งของฉันบนแผนที่" title="ฉันอยู่ที่ไหน">📍</button>
       </div>
+      <button class="mehere" id="mehere" hidden></button>
       <span class="maphint">ลากเพื่อเลื่อน · หมุนล้อหรือถ่างนิ้วเพื่อซูม · แตะอำเภอเพื่อเจาะลง</span>
     </div>
     <div class="legend" id="legend"></div>
   </div>
   <div class="panel">
     <nav class="crumbs" id="crumbs" aria-label="ตำแหน่งที่ดูอยู่"></nav>
+    <div id="where" aria-live="polite" hidden></div>
     <div id="panel" class="panel"></div>
   </div>
 </section>
@@ -390,10 +410,10 @@ const tambonN = t => t.parts.reduce((s,p)=>s+(A().lgu[p.l].parts[t.t]||0),0);
 
 /* ---------- tracker state ---------- */
 const logs = new Map();
-let counts = {};
+let counts = {}, remote = null;   // remote: counts from the survey back end (website version)
 let db=null, uid=null, canWrite=false, dbReady=false;
 let venue = store.get("venue","market");
-function recount(){ counts=Object.fromEntries(DATA.lgus.map(o=>[o.n,[0,0,0,0]])); for(const d of logs.values()){ if(counts[d.l]&&d.c>=0&&d.c<4) counts[d.l][d.c]++; } }
+function recount(){ counts=Object.fromEntries(DATA.lgus.map(o=>[o.n,[0,0,0,0]])); if(remote&&!db){ Object.entries(remote).forEach(([n,a])=>{ if(counts[n]) a.forEach((v,i)=>counts[n][i]=+v||0); }); return; } for(const d of logs.values()){ if(counts[d.l]&&d.c>=0&&d.c<4) counts[d.l][d.c]++; } }
 recount();
 const done = n => counts[n] ? counts[n].reduce((a,b)=>a+b,0) : 0;
 const distDone = d => { const r=[0,0,0,0]; DMAP[d].lgus.forEach(o=>counts[o.n].forEach((v,i)=>r[i]+=v)); return r; };
@@ -789,13 +809,98 @@ function refreshPanel(){ if(selected!=null) tambonPanel(selected); else if(level
 function refresh(){ recount(); renderTiers(); renderCells(); colorMap(); renderTierTable(); renderTable(); renderMethod(); refreshPanel();
   if(!document.getElementById("v-plan").hidden) renderPlan(); if(!document.getElementById("v-split").hidden) renderSplit(); }
 
+/* ---------- where am I (enumerator's phone only) ----------
+   The phone's GPS position is turned into map units and tested against the tambon outlines, all inside this browser.
+   It is never sent, saved or attached to a questionnaire: quotas count the LAO where the respondent is registered (items 4–5), not where the enumerator stands. */
+const GEO = { x:[1406.6052057212266,-0.009352912284957377,-144674.52415732198], y:[-0.033753189493642866,-1456.7372719932532,22542.90887851285], pxPerM:1456.737/110574 };
+const geoXY = (lat,lon) => ({ x:GEO.x[0]*lon+GEO.x[1]*lat+GEO.x[2], y:GEO.y[0]*lon+GEO.y[1]*lat+GEO.y[2] });
+const rings = d => d.split("M").filter(Boolean).map(seg => (seg.match(/-?[\d.]+,-?[\d.]+/g)||[]).map(p => p.split(",").map(Number)));
+function inRings(R,x,y){ let inside=false; R.forEach(r=>{ for(let i=0,j=r.length-1;i<r.length;j=i++){ const [xi,yi]=r[i],[xj,yj]=r[j]; if(((yi>y)!==(yj>y)) && x<(xj-xi)*(y-yi)/(yj-yi)+xi) inside=!inside; } }); return inside; }
+const TAMR = DATA.tambons.map(t=>rings(t.d)), DISTR = DATA.districts.map(d=>rings(d.d));
+function nearestTambon(x,y){ let best=-1,bd=1e9; DATA.tambons.forEach((t,i)=>{ TAMR[i].forEach(r=>r.forEach(([px,py])=>{ const dd=(px-x)**2+(py-y)**2; if(dd<bd){bd=dd;best=i;} })); }); return {i:best, km:Math.sqrt(bd)/GEO.pxPerM/1000}; }
+const gMe = el("g",{"aria-hidden":"true"},svg);
+let geoWatch=null, here=null, hereTam=-2;
+const locBtn=document.getElementById("zloc"), whereBox=document.getElementById("where");
+function drawMe(){ gMe.innerHTML=""; if(!here) return;
+  const k=view.w/BASEW, r=Math.max(5,9*k);
+  el("circle",{cx:here.x,cy:here.y,r:Math.max(r,here.acc*GEO.pxPerM),class:"me-acc","stroke-width":1.2*k},gMe);
+  el("circle",{cx:here.x,cy:here.y,r,class:"me-ring","stroke-width":2*k},gMe);
+  el("circle",{cx:here.x,cy:here.y,r,class:"me-dot","stroke-width":2.5*k},gMe); }
+const _applyView=applyView; applyView=function(){ _applyView(); drawMe(); };
+function locate(t){ return DATA.tambons.findIndex((_,i)=>inRings(TAMR[i],t.x,t.y)); }
+function wherePanel(){
+  if(!here){ whereBox.hidden=true; whereBox.innerHTML=""; document.getElementById("mehere").hidden=true; return; }
+  whereBox.hidden=false; const acc=Math.round(here.acc);
+  const c=h("div",{class:"card where"}); const i=hereTam;
+  const tail=`<p class="muted" style="font-size:.78rem">ความแม่นยำราว ±${fmt(acc)} ม.${acc>300?" (สัญญาณ GPS ยังไม่ดี ลองออกไปที่โล่งแล้วกดใหม่)":""} · ตำแหน่งคำนวณบนเครื่องนี้เท่านั้น ไม่ส่งและไม่บันทึกไว้ที่ใด</p>`;
+  if(i>=0){
+    const t=DATA.tambons[i], x=DMAP[t.a], a=A().dist[t.a], dd=distDone(t.a), D=dd.reduce((s,v)=>s+v,0);
+    const lg=t.parts.map(p=>{ const al=A().lgu[p.l]; return `<span><b>${p.l}</b> ${dbReady?`เก็บแล้ว <b>${done(p.l)}</b> / `:"เป้า "}<b>${al.n}</b> คน</span>`; }).join("");
+    c.innerHTML=`<div><span class="eyebrow">ตอนนี้คุณอยู่ที่</span><h3>ต.${t.t} อ.${t.a}</h3></div>
+      <div class="kv">${lg}</div>
+      <div><div class="eyebrow" style="margin-bottom:6px">อ.${t.a} · ${dbReady?`เก็บแล้ว ${fmt(D)} จาก ${fmt(a.n)} คน`:`ต้องเก็บ ${fmt(a.n)} คน (ยังไม่มีตัวนับ)`}</div>
+      <div class="wq">${CELLS.map((cl,k)=>`<div>${cl.g} · ${cl.s}<b>${dbReady?dd[k]+"/":""}${a.q[k]}</b></div>`).join("")}</div></div>
+      ${t.parts.length>1?`<p class="note info">ตำบลนี้มี ${t.parts.length} อปท. ตำแหน่งบอกไม่ได้ว่าอยู่ในเขตไหน ให้ดูจากคำตอบข้อ 4 ของผู้ตอบ</p>`:""}
+      <p class="muted" style="font-size:.8rem">ผู้ตอบนับเข้าโควตาของ อปท. ที่มีสิทธิเลือกตั้งและมีชื่อในทะเบียนบ้าน (ข้อ 4–5) ไม่ใช่ตามจุดที่ยืนเก็บ</p>${tail}`;
+  } else {
+    const di=DATA.districts.findIndex((_,j)=>inRings(DISTR[j],here.x,here.y)), nt=nearestTambon(here.x,here.y), T=DATA.tambons[nt.i];
+    const where = di>=0 ? `อ.${DATA.districts[di].name} (นอกพื้นที่ศึกษา)` : "นอกขอบเขตแผนที่";
+    c.innerHTML=`<div><span class="eyebrow">ตอนนี้คุณอยู่ที่</span><h3>${where}</h3></div>
+      <p>ตำบลในพื้นที่ศึกษาที่ใกล้ที่สุดคือ <b>ต.${T.t} อ.${T.a}</b> ห่างราว ${nt.km<1?"ไม่ถึง 1":fmt(Math.round(nt.km))} กม. (เส้นตรง)</p>${tail}`;
+    const b=h("button",{class:"btn"},`ไปที่ ต.${T.t}`); b.addEventListener("click",()=>selectTambon(nt.i)); c.insertBefore(b, c.lastElementChild);
+  }
+  const row=h("div",{class:"row"});
+  const b1=h("button",{class:"btn"},"แสดงตำแหน่งของฉัน"); b1.addEventListener("click",()=>centerMe(true)); row.appendChild(b1);
+  const b2=h("button",{class:"btn ghost"},"ปิดตำแหน่ง"); b2.addEventListener("click",stopGeo); row.appendChild(b2);
+  c.appendChild(row);
+  whereBox.innerHTML=""; whereBox.appendChild(c);
+  const mh=document.getElementById("mehere"); const T=i>=0?DATA.tambons[i]:null;
+  mh.hidden=false; mh.innerHTML = T ? `📍 <b>ต.${T.t} อ.${T.a}</b>${dbReady?` · อำเภอนี้เก็บแล้ว ${distDone(T.a).reduce((s,v)=>s+v,0)}/${A().dist[T.a].n}`:""}` : "📍 <b>อยู่นอกพื้นที่ศึกษา</b>";
+  mh.onclick=()=>whereBox.scrollIntoView({behavior:reduce?"auto":"smooth",block:"start"});
+}
+function centerMe(zoom){ if(!here) return; const w=zoom?BASEW/5:view.w, hh=w*(view.h/view.w); animateTo([here.x-w/2,here.y-hh/2,w,hh]); }
+function onPos(p){
+  const first=!here; const q=geoXY(p.coords.latitude,p.coords.longitude); here={x:q.x,y:q.y,acc:p.coords.accuracy||0};
+  const i=locate(here);
+  if(i!==hereTam){ hereTam=i; if(i>=0){ selectTambon(i); } }
+  if(first) centerMe(true);
+  drawMe(); wherePanel(); locBtn.setAttribute("aria-pressed","true");
+}
+function onGeoErr(e){ stopGeo(); toast(e&&e.code===1?"ไม่ได้รับอนุญาตให้ใช้ตำแหน่ง เปิดสิทธิ์ตำแหน่งให้เบราว์เซอร์แล้วลองใหม่":e&&e.code===3?"หาตำแหน่งไม่ทันเวลา ลองใหม่ในที่โล่ง":"หาตำแหน่งไม่ได้ ลองใหม่อีกครั้ง"); }
+function stopGeo(){ if(geoWatch!=null) navigator.geolocation.clearWatch(geoWatch); geoWatch=null; here=null; hereTam=-2; drawMe(); wherePanel(); locBtn.setAttribute("aria-pressed","false"); }
+locBtn.addEventListener("click",()=>{
+  if(geoWatch!=null){ centerMe(true); return; }
+  if(!("geolocation" in navigator)){ toast("เครื่องนี้ไม่รองรับการระบุตำแหน่ง"); return; }
+  if(!window.isSecureContext){ toast("ต้องเปิดผ่าน https จึงจะใช้ตำแหน่งได้"); return; }
+  showView("map"); toast("กำลังหาตำแหน่ง…");
+  geoWatch=navigator.geolocation.watchPosition(onPos,onGeoErr,{enableHighAccuracy:true,maximumAge:15000,timeout:20000});
+});
+
+/* ---------- collected so far (website version): counts from the survey back end ----------
+   Signed-in accounts only. The back end returns numbers per LAO and quota cell, never answers. */
+const LCODE = {"N01":"ทน.บุรีรัมย์","M02":"ทม.ชุมเห็ด","M03":"ทม.บ้านบัว","M04":"ทม.สวายจีก","T05":"ทต.หลักเขต","T06":"ทต.หนองตาด","T07":"ทต.บัวทอง","T08":"ทต.กระสัง","A09":"อบต.เสม็ด","A10":"อบต.สะแกโพรง","A11":"อบต.บ้านยาง","A12":"อบต.พระครู","A13":"อบต.ถลุงเหล็ก","A14":"อบต.ลุมปุ๊ก","A15":"อบต.สองห้อง","A16":"อบต.สะแกซำ","A17":"อบต.กลันทา","A18":"อบต.เมืองฝาง","T19":"ทต.สตึก","T20":"ทต.ศรีสตึก","T21":"ทต.ดอนมนต์","T22":"ทต.สะแก","A23":"อบต.นิคม","A24":"อบต.ทุ่งวัง","A25":"อบต.เมืองแก","A26":"อบต.หนองใหญ่","A27":"อบต.ร่อนทอง","A28":"อบต.ชุมแสง","A29":"อบต.ท่าม่วง","A30":"อบต.สนามชัย","A31":"อบต.กระสัง","T32":"ทต.บ้านด่าน","T33":"ทต.ปราสาท","A34":"อบต.วังเหนือ","A35":"อบต.โนนขวาง","T36":"ทต.แคนดง","T37":"ทต.หัวฝาย","A38":"อบต.แคนดง","A39":"อบต.ดงพลอง","A40":"อบต.สระบัว"};
+let remoteTimer=null;
+async function pullProgress(){
+  if(!window.Auth||!Auth.connected) return;
+  const s=Auth.get(); if(!s||s.demo){ if(!db) setSync("off","เข้าสู่ระบบเพื่อดูจำนวนที่เก็บแล้ว"); return; }
+  const j=await Auth.api("progress");
+  if(!j.ok){ if(!db) setSync("off", j.offline?"ออฟไลน์ · ตัวเลขยังไม่อัปเดต":(j.error||"ดึงจำนวนที่เก็บไม่ได้")); return; }
+  const src=(window.SITE_CONFIG&&window.SITE_CONFIG.test)?j.test:j.real; remote={};
+  Object.entries(src||{}).forEach(([code,a])=>{ const n=LCODE[code]; if(n) remote[n]=a.slice(0,4); });
+  dbReady=true; const T=Object.values(src||{}).reduce((s,a)=>s+a.reduce((x,y)=>x+y,0),0);
+  const t=new Date(j.at||Date.now()); setSync("on",`เก็บแล้ว ${fmt(T)} ชุด${window.SITE_CONFIG&&window.SITE_CONFIG.test?" (ข้อมูลทดสอบ)":""} · อัปเดต ${t.toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})}`);
+  refresh(); if(here) wherePanel();
+}
+function startProgress(){ clearInterval(remoteTimer); pullProgress(); remoteTimer=setInterval(()=>{ if(!document.hidden) pullProgress(); },90000); }
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden && remote) pullProgress(); });
+
 /* ---------- boot ---------- */
 renderTiers(); renderCells(); renderZoomSeg(); renderCrumbs(); colorMap(); renderTierTable(); renderTable(); renderMethod(); overviewPanel();
 showView((location.hash||"").replace("#","")); fitAspect();
 (async()=>{
   try{
     const [d,u]=await Promise.all([window.claude?.use?window.claude.use("db"):null, window.claude?.use?window.claude.use("user"):null]);
-    if(!d){ setSync("off","ฉบับเว็บไซต์ · ไม่มีตัวนับร่วม"); return; }
+    if(!d){ setSync("off","ฉบับเว็บไซต์ · เข้าสู่ระบบเพื่อดูจำนวนที่เก็บแล้ว"); const go=()=>{ startProgress(); if(window.Auth) Auth.onChange(()=>startProgress()); }; if(document.readyState==="complete") go(); else window.addEventListener("load",go); return; }
     db=d;
     if(u){ try{ uid=await u.id(); }catch(e){} try{ const cw=await u.can("data.write"); canWrite = cw!==false; }catch(e){ canWrite=true; } } else canWrite=true;
     db.collection("interviews").onSnapshot(snap=>{ logs.clear(); snap.docs.forEach(x=>{ const v=x.data(); if(v) logs.set(x.id,v); });
