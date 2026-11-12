@@ -80,16 +80,69 @@
     };
   }
 
-  /* the "เข้าสู่ระบบ" item in the site menu becomes the signed-in user's own page */
+  /* the "เข้าสู่ระบบ" item in the site menu: signed out → the sign-in page; signed in → the person's chip, which opens a small menu
+     (team calendar, field map, own account, sign out). The menu is placed on <body> because the nav list scrolls sideways and would clip it. */
+  let menu = null, menuFor = null;
+  function closeMenu(focusBack) {
+    if (!menu) return;
+    menu.remove(); menu = null;
+    if (menuFor) { menuFor.setAttribute("aria-expanded", "false"); if (focusBack) menuFor.focus(); }
+    document.removeEventListener("pointerdown", outside, true); window.removeEventListener("resize", onMove); window.removeEventListener("scroll", onMove, true);
+  }
+  function outside(e) { if (menu && !menu.contains(e.target) && !menuFor.contains(e.target)) closeMenu(false); }
+  function onMove() { closeMenu(false); }
+  function openMenu(a) {
+    const s = get(); if (!s) return;
+    const base = a.getAttribute("href").replace(/admin\/?$/, ""), here = location.pathname;
+    const items = [
+      ["calendar/", "ปฏิทินทีม", "วันว่างของทีม"],
+      ["field/", "แผนที่ภาคสนาม", "เป้า ตำแหน่ง และจำนวนที่เก็บแล้ว"],
+      ["admin/", "บัญชีของฉัน", s.user.role === "admin" ? "หลังบ้านและข้อมูล" : "รหัสผู้ตอบที่ส่งแล้ว"],
+    ];
+    menu = document.createElement("div");
+    menu.className = "me-menu"; menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", "เมนูของ " + (s.user.name || s.user.username));
+    menu.innerHTML = `<p class="mm-who"><b>${esc(s.user.name || s.user.username)}</b><span>${esc(s.user.username)}${s.user.enumerator ? " · ผู้เก็บเลข " + esc(s.user.enumerator) : ""}</span></p>` +
+      items.map(([h, t, d]) => `<a role="menuitem" href="${esc(base + h)}"${here.endsWith("/" + h) ? ' aria-current="page"' : ""}><b>${t}</b><span>${d}</span></a>`).join("") +
+      `<button type="button" role="menuitem" data-out>ออกจากระบบ</button>`;
+    document.body.appendChild(menu);
+    const r = a.getBoundingClientRect(), w = Math.min(280, window.innerWidth - 24);
+    menu.style.width = w + "px";
+    menu.style.top = Math.round(r.bottom + 8) + "px";
+    menu.style.left = Math.round(Math.max(12, Math.min(r.right - w, window.innerWidth - w - 12))) + "px";
+    menuFor = a; a.setAttribute("aria-expanded", "true");
+    menu.querySelector("[data-out]").onclick = () => { closeMenu(false); clear(); location.href = base + "admin/"; };
+    const its = [...menu.querySelectorAll("[role=menuitem]")];
+    menu.addEventListener("keydown", e => {
+      const i = its.indexOf(document.activeElement);
+      if (e.key === "Escape") { e.preventDefault(); closeMenu(true); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); its[(i + 1) % its.length].focus(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); its[(i - 1 + its.length) % its.length].focus(); }
+      else if (e.key === "Tab") closeMenu(false);
+    });
+    setTimeout(() => { document.addEventListener("pointerdown", outside, true); window.addEventListener("resize", onMove); window.addEventListener("scroll", onMove, true); }, 0);
+    its[0].focus({ preventScroll: true });
+  }
+  function onChip(e) {
+    const a = e.currentTarget;
+    if (!a.classList.contains("me")) return;            // signed out: a normal link to the sign-in page
+    e.preventDefault();
+    if (menu && menuFor === a) closeMenu(true); else { closeMenu(false); openMenu(a); }
+  }
   function paintNav() {
     const s = get();
+    closeMenu(false);
     document.querySelectorAll('.site-nav a[href$="admin/"]').forEach(a => {
-      if (!a.dataset.label) a.dataset.label = a.textContent;
+      if (!a.dataset.label) { a.dataset.label = a.textContent; a.addEventListener("click", onChip); }
       if (s && !s.user.mustChange) {
         const nm = s.user.name || s.user.username;
-        a.innerHTML = `<span class="me-av" aria-hidden="true">${esc(nm.slice(0, 1))}</span><span class="me-nm">${esc(nm)}</span>`;
-        a.classList.add("me"); a.title = "บัญชีของฉัน (" + s.user.username + ")"; a.setAttribute("aria-label", "บัญชีของฉัน: " + nm);
-      } else { a.textContent = a.dataset.label; a.classList.remove("me"); a.removeAttribute("title"); a.removeAttribute("aria-label"); }
+        a.innerHTML = `<span class="me-av" aria-hidden="true">${esc(nm.slice(0, 1))}</span><span class="me-nm">${esc(nm)}</span><span class="me-car" aria-hidden="true">▾</span>`;
+        a.classList.add("me"); a.title = "เมนูของฉัน (" + s.user.username + ")"; a.setAttribute("aria-label", "เมนูของฉัน: " + nm);
+        a.setAttribute("aria-haspopup", "menu"); a.setAttribute("aria-expanded", "false");
+        if (/\/(calendar|field|admin)\/$/.test(location.pathname)) a.setAttribute("aria-current", "page");
+      } else {
+        a.textContent = a.dataset.label; a.classList.remove("me"); a.removeAttribute("title"); a.removeAttribute("aria-label");
+        a.removeAttribute("aria-haspopup"); a.removeAttribute("aria-expanded");
+      }
     });
   }
   /* pick up changes the researcher made to this account (e.g. a collector number) without signing out */

@@ -93,3 +93,12 @@ details.sent table{margin-top:8px;font-size:.85rem}
 .site-nav a.nl.me:hover{border-color:var(--ink)}
 .me-av{width:24px;height:24px;border-radius:50%;background:var(--mint);color:var(--mint-ink);display:grid;place-items:center;font-family:var(--f-display);font-size:.8rem;font-weight:600;flex:none}
 .me-nm{max-width:12ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.me-car{font-size:.7rem;color:var(--muted);margin-left:-2px}
+.me-menu{position:fixed;z-index:60;background:var(--surface);border:1px solid var(--line2);border-radius:16px;box-shadow:0 14px 40px rgba(29,27,25,.16);padding:6px;display:grid;gap:2px}
+.me-menu .mm-who{display:grid;padding:8px 10px 10px;border-bottom:1px solid var(--line);margin-bottom:4px;line-height:1.35}
+.me-menu .mm-who span{font-size:.8rem;color:var(--muted);font-family:var(--f-mono)}
+.me-menu a,.me-menu button{appearance:none;border:0;background:none;font:inherit;text-align:left;color:var(--ink);text-decoration:none;display:grid;gap:0;padding:8px 10px;border-radius:10px;cursor:pointer;line-height:1.35}
+.me-menu a span{font-size:.8rem;color:var(--muted)}
+.me-menu a:hover,.me-menu a:focus-visible,.me-menu button:hover,.me-menu button:focus-visible{background:var(--sunk);outline:none}
+.me-menu a[aria-current="page"] b::after{content:" ·  หน้านี้";font-weight:400;font-size:.8rem;color:var(--muted)}
+.me-menu [data-out]{color:var(--bad);border-top:1px solid var(--line);border-radius:0 0 10px 10px;margin-top:4px}
