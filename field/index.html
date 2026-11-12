@@ -286,6 +286,10 @@ footer{margin-top:36px;font-size:.8rem;color:var(--muted);display:grid;gap:6px;m
         <button aria-pressed="true" data-m="type">ประเภท อปท.</button>
         <button aria-pressed="false" data-m="prog">ความคืบหน้า</button>
       </div>
+      <span style="display:inline-flex;gap:6px;align-items:center"><span class="muted" style="font-size:.8rem;margin-left:4px">ความละเอียด</span><div class="seg" id="grainseg" role="group" aria-label="ความละเอียดของเป้าและจำนวนที่เก็บ">
+        <button aria-pressed="false" data-g="dist" title="ดูเป้าและจำนวนที่เก็บแล้วรวมทั้งอำเภอ">รายอำเภอ</button>
+        <button aria-pressed="true" data-g="lgu" title="ดูเป้าและจำนวนที่เก็บแล้วแยกราย อปท.">ราย อปท.</button>
+      </div></span>
     </div>
     <div class="mapframe">
       <svg id="map" role="img" aria-label="แผนที่ 4 อำเภอที่เก็บข้อมูล ซูมและเลื่อนได้ แตะอำเภอเพื่อดูภาพรวม แล้วแตะตำบลเพื่อดู อปท."></svg>
@@ -437,6 +441,8 @@ const svg=document.getElementById("map");
 const defSvg=el("svg",{width:0,height:0,"aria-hidden":"true",style:"position:absolute;width:0;height:0;overflow:hidden"}); document.body.prepend(defSvg); const defs=el("defs",{},defSvg);
 const gCtx=el("g",{},svg), gT=el("g",{},svg), gD=el("g",{},svg), gL=el("g",{},svg), gDL=el("g",{},svg);
 let mode="type", level="all", selected=null;
+/* grain: how fine the targets and progress are shown — "dist" (district quota only) or "lgu" (each local government). Remembered on this device. */
+let grain="lgu"; try{ if(localStorage.getItem("bfm.field.grain")==="dist") grain="dist"; }catch(e){}
 const tamEls=[], tamLbl=[];
 function pattern(id,a,b){ const p=el("pattern",{id,patternUnits:"userSpaceOnUse",width:12,height:12,patternTransform:"rotate(45)"},defs);
   el("rect",{width:12,height:12,style:`fill:var(--${a})`},p); el("rect",{width:5,height:12,style:`fill:var(--${b})`},p); }
@@ -468,7 +474,7 @@ function applyView(){
   const k=view.w/BASEW; const showT = k<0.62 || level!=="all";
   tamLbl.forEach(({g,t})=>{ g.setAttribute("transform",`translate(${t.lx},${t.ly}) scale(${Math.max(k,0.22)})`); g.style.display = showT && (level==="all"||t.a===level) ? "" : "none"; });
   ctxLbl.forEach(t=>t.style.fontSize=(14*Math.max(k,0.35))+"px");
-  DD.forEach(x=>{ const L=dLabels[x.d]; L.g.setAttribute("transform",`translate(${L.pos[0]},${L.pos[1]}) scale(${Math.max(k,0.3)})`); L.g.style.display = (level==="all") ? "" : "none"; });
+  DD.forEach(x=>{ const L=dLabels[x.d]; L.g.setAttribute("transform",`translate(${L.pos[0]},${L.pos[1]}) scale(${Math.max(k,0.3)})`); L.g.style.display = (level==="all" || (grain==="dist" && level===x.d)) ? "" : "none"; });
 }
 function clampW(w){ return Math.min(Math.max(w, BASEW/14), BASEW*1.6); }
 let anim=null;
@@ -506,12 +512,15 @@ window.addEventListener("resize",fitAspect);
 function colorMap(){
   DATA.tambons.forEach((t,i)=>{ const p=tamEls[i];
     if(mode==="type"){ p.style.fill = t._pat || `var(--${t.parts[0].k})`; }
-    else { let tg=0,dn=0; t.parts.forEach(x=>{ const a=A().lgu[x.l]; const n=a.parts[t.t]||0; tg+=n; dn+= a.n? Math.min(a.n,done(x.l))*n/a.n : 0; });
+    else { let tg=0,dn=0;
+      if(grain==="dist"){ const a=A().dist[t.a]; tg=a.n; dn=distDone(t.a).reduce((s2,v,k)=>s2+Math.min(v,a.q[k]),0); }
+      else t.parts.forEach(x=>{ const a=A().lgu[x.l]; const n=a.parts[t.t]||0; tg+=n; dn+= a.n? Math.min(a.n,done(x.l))*n/a.n : 0; });
       const f=tg?dn/tg:0; const lvl=f<=0?0:f<.25?1:f<.5?2:f<1?3:4; p.style.fill=`var(--p${lvl})`; }
     p.classList.toggle("dim", level!=="all" && t.a!==level);
   });
-  tamLbl.forEach(({t,pill,tn})=>{ const n=tambonN(t); const w=String(n).length*7+10; pill.setAttribute("x",-w/2); pill.setAttribute("width",w); tn.textContent=n; });
-  DD.forEach(x=>{ dLabels[x.d].n.textContent=`n ${fmt(A().dist[x.d].n)}`; distEl[x.d].classList.toggle("on", level===x.d); });
+  tamLbl.forEach(({t,pill,tn})=>{ const n=tambonN(t); const w=String(n).length*7+10; pill.setAttribute("x",-w/2); pill.setAttribute("width",w); tn.textContent=n;
+    pill.style.display=tn.style.display = grain==="dist" ? "none" : ""; });
+  DD.forEach(x=>{ const a=A().dist[x.d], D=distDone(x.d).reduce((s2,v)=>s2+v,0); dLabels[x.d].n.textContent = dbReady?`${fmt(D)} / ${fmt(a.n)}`:`n ${fmt(a.n)}`; distEl[x.d].classList.toggle("on", level===x.d); });
   renderLegend(); applyView();
 }
 function renderLegend(){
@@ -525,11 +534,17 @@ function renderLegend(){
   }
 }
 document.querySelectorAll("#modeseg button").forEach(b=>b.addEventListener("click",()=>{ mode=b.dataset.m; document.querySelectorAll("#modeseg button").forEach(x=>x.setAttribute("aria-pressed",x===b)); colorMap(); }));
+function setGrain(g){ grain=g==="dist"?"dist":"lgu"; try{ localStorage.setItem("bfm.field.grain",grain); }catch(e){}
+  document.querySelectorAll("#grainseg button").forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.g===grain)));
+  if(grain==="dist" && selected!=null){ const d=DATA.tambons[selected].a; selected=null; tamEls.forEach(p=>p.classList.remove("sel")); level=d; renderCrumbs(); }
+  refresh(); if(typeof here!=="undefined" && here) wherePanel(); }
+document.querySelectorAll("#grainseg button").forEach(b=>b.addEventListener("click",()=>setGrain(b.dataset.g)));
+document.querySelectorAll("#grainseg button").forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.g===grain)));
 const zs=document.getElementById("zoomseg");
 function renderZoomSeg(){ zs.innerHTML=""; [["ทั้งหมด","all"],...DIST.map(x=>[x.short,x.d])].forEach(([lab,d])=>{ const b=h("button",{"aria-pressed":level===d?"true":"false"},lab); b.addEventListener("click",()=> d==="all"?goAll():goDistrict(d)); zs.appendChild(b); }); }
 
 /* ---------- navigation ---------- */
-function tapTambon(i){ const t=DATA.tambons[i]; if(level!==t.a){ goDistrict(t.a); return; } selectTambon(i); }
+function tapTambon(i){ const t=DATA.tambons[i]; if(level!==t.a || grain==="dist"){ if(level!==t.a) goDistrict(t.a); else toast(`ต.${t.t} อยู่ใน อ.${t.a} · กด "ราย อปท." ด้านบนเพื่อดูแยก อปท.`); return; } selectTambon(i); }
 function goAll(){ level="all"; selected=null; tamEls.forEach(p=>p.classList.remove("sel")); colorMap(); animateTo(FULLV); renderZoomSeg(); renderCrumbs(); overviewPanel(); }
 function goDistrict(d,keepSel){ const changed=level!==d; level=d; if(!keepSel){ selected=null; tamEls.forEach(p=>p.classList.remove("sel")); } colorMap(); if(changed||!keepSel) animateTo(distBox[d]); renderZoomSeg(); renderCrumbs(); if(!keepSel) districtPanel(d); }
 function selectTambon(i){ const t=DATA.tambons[i]; if(level!==t.a) goDistrict(t.a,true); selected=i; tamEls.forEach((p,j)=>p.classList.toggle("sel",j===i)); renderCrumbs(); tambonPanel(i); }
@@ -574,6 +589,8 @@ function districtPanel(dn){
   const mixT=[0,1,2].map(i=>x.lgus.reduce((s,o)=>s+A().lgu[o.n].mix[i],0));
   c.appendChild(h("p",{class:"muted",style:"font-size:.86rem"},`วิธีเก็บที่แนะนำรวมทั้งอำเภอ: ตลาด/จุดคนเยอะ ${mixT[0]} · สภากาแฟ ${mixT[1]} · เคาะบ้าน ${mixT[2]} · บันทึกที่ อปท. ของผู้ตอบ (ข้อ 4) เพื่อให้วิเคราะห์ราย อปท. ได้`));
   panel.appendChild(c);
+  if(grain==="dist"){ const n=h("div",{class:"card hint"},`<p>กำลังดู<b>รายอำเภอ</b> โควตาที่ต้องครบคือ 4 ช่องด้านบน (Gen × เพศ ทั้งอำเภอ) ไม่ต้องไล่เป้าทีละ อปท. แต่ต้องถามข้อ 4 ทุกคน และกระจายไปหลาย อปท. ให้ใกล้สัดส่วน</p>`);
+    const b=h("button",{class:"btn"},`ดูแยก ${x.lgus.length} อปท.`); b.addEventListener("click",()=>setGrain("lgu")); n.appendChild(b); panel.appendChild(n); return; }
   const l=h("div",{class:"card"}); l.appendChild(h("div",{class:"eyebrow"},`${x.lgus.length} อปท. · กระจายตามสัดส่วน · แตะเพื่อดูรายละเอียด`));
   TORDER.forEach(k=>{ const ys=x.lgus.filter(o=>o.k===k); if(!ys.length) return;
     const sn=ys.reduce((s,o)=>s+A().lgu[o.n].n,0);
@@ -650,14 +667,14 @@ function renderTierTable(){
   T.innerHTML=hd+rows+`</tbody>`;
 }
 function renderTable(){
-  const Tt=TIERS.find(t=>t.k===tier); document.getElementById("lgutitle").textContent=`ราย อปท. · ระดับ${Tt.label} (เก็บ ${Tt.collect})`;
+  const Tt=TIERS.find(t=>t.k===tier); document.getElementById("lgutitle").textContent=`${grain==="dist"?"รายอำเภอ":"ราย อปท."} · ระดับ${Tt.label} (เก็บ ${Tt.collect})`;
   const T=document.getElementById("qtable");
   let html=`<thead><tr><th class="l">อปท.</th><th class="l">ประเภท</th><th>ผู้ใหญ่ 18+</th><th>ห่างเมือง (กม.)</th><th>n</th><th>Gen Z ช</th><th>Gen Z ญ</th><th>Gen อื่น ช</th><th>Gen อื่น ญ</th><th>ตลาด</th><th>สภากาแฟ</th><th>เคาะบ้าน</th><th class="l">ความคืบหน้า</th></tr></thead><tbody>`;
   const cellv=(o,i)=>{ const v=A().lgu[o.n].q[i]; return dbReady?`${v} <span class="muted">(${counts[o.n][i]})</span>`:v; };
   DD.forEach(x=>{ const a=A().dist[x.d]; const dd=distDone(x.d).reduce((s,v)=>s+v,0);
     const mix=[0,1,2].map(i=>x.lgus.reduce((s,o)=>s+A().lgu[o.n].mix[i],0));
     html+=`<tr class="dist"><td class="l" colspan="2">อ.${x.d} · โควตาหลัก</td><td class="num">${fmt(x.adult)}</td><td class="num">${x.km.toFixed(1)}</td><td class="num">${a.n}</td>${a.q.map(v=>`<td class="num">${v}</td>`).join("")}<td class="num">${mix[0]}</td><td class="num">${mix[1]}</td><td class="num">${mix[2]}</td><td class="l">${dbReady?dd+" / "+a.n:""}</td></tr>`;
-    x.lgus.slice().sort((p,q)=>TORDER.indexOf(p.k)-TORDER.indexOf(q.k)||q.adult-p.adult).forEach(o=>{ const al=A().lgu[o.n], d=done(o.n);
+    if(grain==="lgu") x.lgus.slice().sort((p,q)=>TORDER.indexOf(p.k)-TORDER.indexOf(q.k)||q.adult-p.adult).forEach(o=>{ const al=A().lgu[o.n], d=done(o.n);
       const km=(o.parts.reduce((s,p)=>s+p.adult*(DATA.tambons.find(t=>t.a===p.a&&t.t===p.t).km),0)/o.parts.reduce((s,p)=>s+p.adult,0)).toFixed(1);
       html+=`<tr class="lg" data-n="${o.n}" tabindex="0"><td class="l">${o.n}${o.parts.length>1?" *":""}</td><td class="l"><span class="dot" style="background:var(--${o.k})"></span>${TYPES[o.k].short}</td><td class="num">${fmt(o.adult)}</td><td class="num">${km}</td><td class="num"><b>${al.n}</b></td>${[0,1,2,3].map(i=>`<td class="num">${cellv(o,i)}</td>`).join("")}<td class="num">${al.mix[0]}</td><td class="num">${al.mix[1]}</td><td class="num">${al.mix[2]}</td><td class="l">${dbReady?`${d}/${al.n}<span class="tbar"><span style="width:${al.n?Math.min(100,d/al.n*100):0}%"></span></span>`:"–"}</td></tr>`; });
   });
@@ -837,7 +854,7 @@ function wherePanel(){
     const t=DATA.tambons[i], x=DMAP[t.a], a=A().dist[t.a], dd=distDone(t.a), D=dd.reduce((s,v)=>s+v,0);
     const lg=t.parts.map(p=>{ const al=A().lgu[p.l]; return `<span><b>${p.l}</b> ${dbReady?`เก็บแล้ว <b>${done(p.l)}</b> / `:"เป้า "}<b>${al.n}</b> คน</span>`; }).join("");
     c.innerHTML=`<div><span class="eyebrow">ตอนนี้คุณอยู่ที่</span><h3>ต.${t.t} อ.${t.a}</h3></div>
-      <div class="kv">${lg}</div>
+      ${grain==="lgu"?`<div class="kv">${lg}</div>`:""}
       <div><div class="eyebrow" style="margin-bottom:6px">อ.${t.a} · ${dbReady?`เก็บแล้ว ${fmt(D)} จาก ${fmt(a.n)} คน`:`ต้องเก็บ ${fmt(a.n)} คน (ยังไม่มีตัวนับ)`}</div>
       <div class="wq">${CELLS.map((cl,k)=>`<div>${cl.g} · ${cl.s}<b>${dbReady?dd[k]+"/":""}${a.q[k]}</b></div>`).join("")}</div></div>
       ${t.parts.length>1?`<p class="note info">ตำบลนี้มี ${t.parts.length} อปท. ตำแหน่งบอกไม่ได้ว่าอยู่ในเขตไหน ให้ดูจากคำตอบข้อ 4 ของผู้ตอบ</p>`:""}
