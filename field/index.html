@@ -261,7 +261,7 @@ footer{margin-top:36px;font-size:.8rem;color:var(--muted);display:grid;gap:6px;m
     <div style="display:grid;gap:6px">
       <span class="eyebrow">แผนเก็บข้อมูลภาคสนาม · ทะเบียนราษฎร ธ.ค. 2568</span>
       <h1>แผนภาคสนามบุรีรัมย์</h1>
-      <p>4 อำเภอ · 39 ตำบล · 40 อปท. · จัดสรรตัวอย่างตามสัดส่วนประชากรอายุ 18 ปีขึ้นไป โควตาหลักอยู่ที่ระดับอำเภอ (Gen Z / Gen อื่น × ชาย / หญิง) และกระจายลง อปท. ตามสัดส่วนเพื่อให้อนุมานได้ทุกประเภท อปท.</p>
+      <p>4 อำเภอ · 39 ตำบล · 40 อปท. · จัดสรรตัวอย่างตามสัดส่วนประชากรอายุ 18 ปีขึ้นไป โควตาอยู่ที่ระดับอำเภอ (Gen Z / Gen อื่น × ชาย / หญิง) ตามที่อาจารย์ที่ปรึกษาแนะนำ ส่วนเป้าราย อปท. เป็นแนวทางให้กระจายไปทุกประเภท อปท. ไม่ต้องครบทีละแห่ง</p>
     </div>
     <span class="sync" id="sync"><i></i><span>กำลังเชื่อมตัวนับร่วม…</span></span>
   </div>
@@ -287,8 +287,8 @@ footer{margin-top:36px;font-size:.8rem;color:var(--muted);display:grid;gap:6px;m
         <button aria-pressed="false" data-m="prog">ความคืบหน้า</button>
       </div>
       <span style="display:inline-flex;gap:6px;align-items:center"><span class="muted" style="font-size:.8rem;margin-left:4px">ความละเอียด</span><div class="seg" id="grainseg" role="group" aria-label="ความละเอียดของเป้าและจำนวนที่เก็บ">
-        <button aria-pressed="false" data-g="dist" title="ดูเป้าและจำนวนที่เก็บแล้วรวมทั้งอำเภอ">รายอำเภอ</button>
-        <button aria-pressed="true" data-g="lgu" title="ดูเป้าและจำนวนที่เก็บแล้วแยกราย อปท.">ราย อปท.</button>
+        <button aria-pressed="true" data-g="dist" title="ดูเป้าและจำนวนที่เก็บแล้วรวมทั้งอำเภอ">รายอำเภอ</button>
+        <button aria-pressed="false" data-g="lgu" title="ดูเป้าและจำนวนที่เก็บแล้วแยกราย อปท.">ราย อปท.</button>
       </div></span>
     </div>
     <div class="mapframe">
@@ -314,7 +314,7 @@ footer{margin-top:36px;font-size:.8rem;color:var(--muted);display:grid;gap:6px;m
 <section id="v-quota" hidden>
   <div class="prose" style="max-width:none;gap:12px;margin-bottom:16px">
     <h2>สัดส่วนตัวอย่าง 3 ระดับ รายอำเภอ</h2>
-    <p class="muted" style="max-width:80ch">โควตาหลักคือช่อง อำเภอ × Gen × เพศ ซึ่งต้องเก็บให้ครบ ส่วนตัวเลขราย อปท. เป็นการกระจายตามสัดส่วนในแต่ละอำเภอ เพื่อให้ทุกประเภท อปท. มีผู้ตอบพออนุมานได้ คลาดได้ ±1–2 ชุดต่อแห่ง ตัวเลขทุกระดับคือจำนวนที่<b>เก็บจริง</b> ซึ่งเผื่อแบบสอบถามไม่สมบูรณ์ไว้ 10%</p>
+    <p class="muted" style="max-width:80ch">โควตาหลักคือช่อง อำเภอ × Gen × เพศ ซึ่งต้องเก็บให้ครบ ส่วนตัวเลขราย อปท. เป็นแนวทางการกระจายในแต่ละอำเภอ เพื่อให้มีผู้ตอบจากทุกประเภท อปท. ไม่ใช่โควตาที่ต้องครบทีละแห่ง ตัวเลขทุกระดับคือจำนวนที่<b>เก็บจริง</b> ซึ่งเผื่อแบบสอบถามไม่สมบูรณ์ไว้ 10%</p>
   </div>
   <div class="tblwrap" style="margin-bottom:22px"><table class="big" id="tiertable"></table></div>
   <div class="row" style="justify-content:space-between;margin-bottom:12px">
@@ -442,7 +442,7 @@ const defSvg=el("svg",{width:0,height:0,"aria-hidden":"true",style:"position:abs
 const gCtx=el("g",{},svg), gT=el("g",{},svg), gD=el("g",{},svg), gL=el("g",{},svg), gDL=el("g",{},svg);
 let mode="type", level="all", selected=null;
 /* grain: how fine the targets and progress are shown — "dist" (district quota only) or "lgu" (each local government). Remembered on this device. */
-let grain="lgu"; try{ if(localStorage.getItem("bfm.field.grain")==="dist") grain="dist"; }catch(e){}
+let grain="dist"; try{ if(localStorage.getItem("bfm.field.grain")==="lgu") grain="lgu"; }catch(e){}   // advisor: work to the district quota; LAO targets are guidance
 const tamEls=[], tamLbl=[];
 function pattern(id,a,b){ const p=el("pattern",{id,patternUnits:"userSpaceOnUse",width:12,height:12,patternTransform:"rotate(45)"},defs);
   el("rect",{width:12,height:12,style:`fill:var(--${a})`},p); el("rect",{width:5,height:12,style:`fill:var(--${b})`},p); }
@@ -728,9 +728,9 @@ function renderMethod(){
   const mixRow=k=>{ const xs=DATA.lgus.filter(o=>o.k===k); const s=[0,1,2].map(i=>xs.reduce((a,o)=>a+A().lgu[o.n].mix[i],0)); const n=xs.reduce((a,o)=>a+A().lgu[o.n].n,0); return `<tr><td class="l"><span class="dot" style="background:var(--${k})"></span>${TYPES[k].label}</td><td class="num">${n}</td><td class="num">${s[0]}</td><td class="num">${s[1]}</td><td class="num">${s[2]}</td></tr>`; };
   const Tt=TIERS.find(t=>t.k===tier);
   document.getElementById("method").innerHTML=`
-  <div><span class="eyebrow">หลักการ</span><h2>จัดสรรตามอำเภอเป็นหลัก กระจายลง อปท. ตามสัดส่วน</h2></div>
-  <p>ตัวอย่างแบ่งตามสัดส่วนประชากรของ 4 อำเภอก่อน แล้วแบ่งในแต่ละอำเภอเป็น 4 ช่อง (Gen Z / Gen อื่น × ชาย / หญิง) ช่องระดับอำเภอคือ<b>โควตาหลัก</b>ที่ต้องเก็บให้ครบ จากนั้นกระจายลงทั้ง 40 อปท. ตามสัดส่วนประชากร ไม่ตัด อปท. ใดออก เพื่อให้มีผู้ตอบจากทุกประเภท อปท. พอที่จะอนุมานเปรียบเทียบได้ เป้าราย อปท. คลาดได้ ±1–2 ชุด แต่ผลรวมของอำเภอต้องครบ</p>
-  <p class="note"><b>กฎข้อเดียวที่ห้ามพลาด:</b> นับโควตาตาม อปท. ที่ผู้ตอบ<u>มีสิทธิเลือกตั้ง</u> (ข้อ 4 ในแบบสอบถาม) ไม่ใช่ตามสถานที่ที่สัมภาษณ์ คนที่มาตลาดในตัวอำเภออาจมาจาก อบต. รอบ ๆ ถ้าช่องของอำเภอนั้นยังว่างก็นับเข้าได้ และบันทึก อปท. ของเขาตามจริง</p>
+  <div><span class="eyebrow">หลักการ</span><h2>โควตาระดับอำเภอ บันทึก อปท. ของผู้ตอบทุกคน</h2></div>
+  <p>ตัวอย่างแบ่งตามสัดส่วนประชากรของ 4 อำเภอก่อน แล้วแบ่งในแต่ละอำเภอเป็น 4 ช่อง (Gen Z / Gen อื่น × ชาย / หญิง) ช่องระดับอำเภอคือ<b>โควตาหลัก</b>ที่ต้องเก็บให้ครบ ภายในอำเภอให้กระจายไปหลาย อปท. ทั้งเทศบาลและ อบต. เพื่อให้มีผู้ตอบจากทุกประเภท อปท. (ประเภท อปท. ใช้เป็นตัวแปรในการวิเคราะห์ ไม่ใช่โควตา) เป้าราย อปท. ในแผนที่เป็นแนวทางเท่านั้น ไม่ต้องตามให้เป๊ะ</p>
+  <p class="note"><b>กฎข้อเดียวที่ห้ามพลาด:</b> นับโควตาตามอำเภอและ อปท. ที่ผู้ตอบ<u>มีสิทธิเลือกตั้ง</u> (ข้อ 4 ในแบบสอบถาม) ไม่ใช่ตามสถานที่ที่สัมภาษณ์ คนที่มาตลาดในตัวอำเภออาจมาจาก อบต. รอบ ๆ ถ้าช่องของอำเภอนั้นยังว่างก็นับเข้าได้ และบันทึก อปท. ของเขาตามจริง</p>
   <div><h2>ขนาดตัวอย่าง 3 ระดับ</h2><p class="muted" style="margin-top:4px">ใช้สูตร Cochran เป็นหลัก ตอนนี้เลือกระดับ${Tt.label}อยู่ เปลี่ยนได้ที่ด้านบนของหน้า</p></div>
   <div class="tblwrap"><table class="big"><thead><tr><th class="l">ระดับ</th><th>เก็บจริง</th><th>ใช้วิเคราะห์ได้</th><th class="l">เกณฑ์</th><th class="l">ใช้เมื่อ</th></tr></thead><tbody>
    <tr><td class="l"><b>ต่ำสุด</b></td><td class="num">300</td><td class="num">≥ 271</td><td class="l">Cochran ความเชื่อมั่น 90%</td><td class="l">เก็บไม่ทันตามกำหนด · H4/H5/H1b เป็นการวิเคราะห์เชิงสำรวจ · ใช้ Firth logit</td></tr>
