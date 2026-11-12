@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ปฏิทินทีมภาคสนาม</title>
+<meta name="description" content="ปฏิทินวันว่างของทีมเก็บข้อมูล พฤศจิกายน 2569 ถึงเมษายน 2570 สำหรับผู้ที่เข้าสู่ระบบ">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kanit:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+/* Layout: heading + month switcher → month grid (left) and the selected day (right; below on phones).
+   Each day shows how many people are free / partly free / busy, and the signed-in person's own mark as a coloured edge. */
+:root{--free:#2f7a45;--free-soft:#e3f4e6;--half:#c9971e;--half-soft:#fbf1d8;--busy:#b4232c;--busy-soft:#f9e3e4}
+main.wrap{display:grid;gap:18px;padding-top:24px}
+.head{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:end;justify-content:space-between}
+.head h1{font-size:clamp(1.5rem,1.2rem + 1.4vw,2.1rem);color:var(--brown)}
+.head p{color:var(--muted);max-width:60ch}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.84rem;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
+.dot.free{background:var(--free)}.dot.half{background:var(--half)}.dot.busy{background:var(--busy)}
+.months{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.months button{appearance:none;border:1px solid var(--line2);background:var(--surface);font:inherit;font-size:.86rem;padding:5px 12px;border-radius:999px;cursor:pointer;color:var(--muted);min-height:36px}
+.months button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+.months .arrow{width:36px;padding:0;font-size:1rem;color:var(--ink)}
+.layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(300px,1fr);gap:18px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:1fr}}
+.cal{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:grid;gap:10px}
+.cal-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.cal-top h2{font-size:1.2rem}
+.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.wd{font-size:.76rem;color:var(--muted);text-align:center;padding:2px 0}
+.wd.we{color:var(--brown-soft)}
+.day{appearance:none;font:inherit;text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:10px;min-height:76px;padding:5px 6px;display:grid;grid-template-rows:auto 1fr auto;gap:2px;cursor:pointer;position:relative;color:var(--ink)}
+.day:hover{border-color:var(--ink)}
+.day.out{visibility:hidden}
+.day.we{background:#f2f0ea}
+.day.past{opacity:.45}
+.day.today .n{background:var(--ink);color:#fff;border-radius:999px;padding:0 7px}
+.day .n{font-family:var(--f-mono);font-size:.85rem;justify-self:start;line-height:1.5}
+.day .cnt{display:flex;flex-wrap:wrap;gap:2px 6px;align-self:end;font-family:var(--f-mono);font-size:.74rem}
+.day .cnt span{display:inline-flex;align-items:center;gap:3px}
+.day .cnt .dot{width:7px;height:7px}
+.day .note{position:absolute;top:5px;right:6px;font-size:.7rem;color:var(--muted)}
+.day.me-free{box-shadow:inset 0 -4px 0 var(--free)}
+.day.me-half{box-shadow:inset 0 -4px 0 var(--half)}
+.day.me-busy{box-shadow:inset 0 -4px 0 var(--busy)}
+.day[aria-pressed="true"]{outline:2px solid var(--focus);outline-offset:1px;border-color:var(--focus)}
+.day.sel{background:color-mix(in oklab,var(--focus) 14%,var(--surface))}
+@media (max-width:560px){.months{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-inline:-16px;padding-inline:16px}.months button{flex:none}.seg button{font-size:.88rem;padding:8px 4px}.day{min-height:58px;padding:4px}.day .cnt{font-size:.68rem;gap:0 4px}.grid{gap:3px}}
+.panel{display:grid;gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:12px}
+.card h3{font-size:1.1rem}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.seg button{appearance:none;font:inherit;font-weight:500;border:1px solid var(--line2);background:var(--surface);border-radius:12px;padding:10px 6px;cursor:pointer;min-height:44px;display:flex;align-items:center;justify-content:center;gap:6px}
+.seg button[aria-pressed="true"][data-s="free"]{background:var(--free-soft);border-color:var(--free);color:var(--free)}
+.seg button[aria-pressed="true"][data-s="half"]{background:var(--half-soft);border-color:var(--half);color:#7a5a0c}
+.seg button[aria-pressed="true"][data-s="busy"]{background:var(--busy-soft);border-color:var(--busy);color:var(--busy)}
+textarea{font:inherit;width:100%;min-height:72px;border:1px solid var(--line2);border-radius:12px;padding:10px 12px;resize:vertical;background:var(--surface);color:var(--ink)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn.sm{padding:6px 14px;min-height:36px;font-size:.88rem}
+.team{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.team li{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:start;padding:8px 0;border-top:1px solid var(--line)}
+.team li:first-child{border-top:0}
+.team .nm{font-weight:500}
+.team .nt{grid-column:1 / -1;font-size:.86rem;color:var(--muted)}
+.team .st{font-size:.8rem;border-radius:999px;padding:1px 10px;white-space:nowrap}
+.st.free{background:var(--free-soft);color:var(--free)}.st.half{background:var(--half-soft);color:#7a5a0c}.st.busy{background:var(--busy-soft);color:var(--busy)}.st.none{background:var(--sunk);color:var(--muted)}
+.best{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.best button{appearance:none;font:inherit;width:100%;text-align:left;display:flex;justify-content:space-between;gap:8px;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:7px 10px;cursor:pointer}
+.best button:hover{border-color:var(--ink)}
+.sync{font-size:.82rem;color:var(--muted)}
+.notice{border-radius:12px;padding:10px 12px;font-size:.9rem;background:var(--sunk)}
+.notice.err{background:var(--busy-soft);color:var(--busy)}
+.gate{max-width:440px}
+.eyebrow{font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.fld{display:grid;gap:4px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../assets/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<meta name="theme-color" content="#f7f7f4">
+</head>
+<body>
+<nav class="site-nav" aria-label="เมนูหลัก"><div class="wrap"><a class="brand" href="../"><img class="logo" src="../assets/logo.svg" alt="" width="33" height="22">Econ Socio-Lab</a><ul><li><a class="nl" href="../#intro">บทนำ</a></li><li><a class="nl" href="../#lit">วรรณกรรม</a></li><li><a class="nl" href="../#method">ระเบียบวิธี</a></li><li><a class="nl" href="../field/">แผนที่ภาคสนาม</a></li><li><a class="nl" href="../calendar/" aria-current="page">ปฏิทินทีม</a></li><li><a class="nl" href="../codes/">บัตรรหัส</a></li><li><a class="nl cta" href="../survey/">แบบสอบถาม</a></li><li><a class="nl" href="../admin/">เข้าสู่ระบบ</a></li></ul></div></nav>
+<main class="wrap">
+  <div class="head">
+    <div style="display:grid;gap:6px">
+      <p class="eyebrow">ทีมภาคสนาม · พฤศจิกายน 2569 – เมษายน 2570</p>
+      <h1>ปฏิทินวันว่างของทีม</h1>
+      <p>แตะวันในปฏิทินเพื่อบอกว่าคุณว่างหรือไม่ว่าง ใส่โน้ตสั้น ๆ ได้ ทุกคนที่เข้าสู่ระบบเห็นของทั้งทีม เพื่อใช้นัดวันลงพื้นที่</p>
+    </div>
+    <div class="legend" aria-label="ความหมายของสี">
+      <span><i class="dot free"></i>ว่าง</span><span><i class="dot half"></i>ว่างบางช่วง</span><span><i class="dot busy"></i>ไม่ว่าง</span><span>แถบสีใต้วัน = ที่คุณลงไว้</span>
+    </div>
+  </div>
+  <div id="app" aria-live="polite"></div>
+</main>
+<script src="../assets/config.js"></script>
+<script src="../assets/auth.js"></script>
+<script>
+(function () {
+  "use strict";
+  const $ = s => document.querySelector(s), esc = Auth.esc;
+  const app = $("#app");
+  const START = "2026-11-01", END = "2027-04-30";
+  const ST = { free: "ว่าง", half: "ว่างบางช่วง", busy: "ไม่ว่าง" };
+  const WD = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
+  const MON = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+  const MON_S = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+  const pad = n => String(n).padStart(2, "0");
+  const iso = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
+  const parts = s => { const [y, m, d] = s.split("-").map(Number); return { y, m: m - 1, d }; };
+  const dowOf = s => { const p = parts(s); return new Date(Date.UTC(p.y, p.m, p.d)).getUTCDay(); };
+  const longDate = s => { const p = parts(s); return `วัน${["อาทิตย์","จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์"][dowOf(s)]}ที่ ${p.d} ${MON[p.m]} ${p.y + 543}`; };
+  const shortDate = s => { const p = parts(s); return `${WD[dowOf(s)]} ${p.d} ${MON_S[p.m]}`; };
+  const bkkToday = () => { const t = new Date(Date.now() + 7 * 3600e3); return iso(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()); };
+  const months = []; for (let y = 2026, m = 10; iso(y, m, 1) <= END; m++) { if (m > 11) { m = 0; y++; } months.push({ y, m }); }
+
+  let data = null;            // {me, today, members:[{u,n,role,e}], rows:[{d,u,s,t}]}
+  let byDay = {};             // d -> {u -> {s,t}}
+  let mi = 0, sel = [], multi = false, busy = false, msg = "";
+  let timer = null;
+
+  /* ---------- demo (no back end, or a demo session): the same rules, kept in this browser only ---------- */
+  const isDemo = () => { const s = Auth.get(); return !Auth.connected || (s && s.demo); };
+  function demoLoad() {
+    let rows = []; try { rows = JSON.parse(localStorage.getItem("bfm.cal.demo") || "[]"); } catch (e) {}
+    const s = Auth.get(), me = s ? s.user.username : "demo";
+    return { me, today: bkkToday(), members: [{ u: me, n: (s && s.user.name) || "คุณ (ตัวอย่าง)", role: "enumerator" }, { u: "w", n: "วรณิษฐา (ตัวอย่าง)", role: "admin" }, { u: "f1", n: "ผู้ช่วย 1 (ตัวอย่าง)", role: "enumerator" }], rows };
+  }
+  function demoSave(days, st, note) {
+    let rows = []; try { rows = JSON.parse(localStorage.getItem("bfm.cal.demo") || "[]"); } catch (e) {}
+    const me = data.me;
+    rows = rows.filter(r => !(r.u === me && days.includes(r.d)));
+    if (st || note) days.forEach(d => rows.push({ d, u: me, s: st, t: note }));
+    try { localStorage.setItem("bfm.cal.demo", JSON.stringify(rows)); } catch (e) {}
+    return demoLoad();
+  }
+
+  async function load(quiet) {
+    if (isDemo()) { data = demoLoad(); index(); return draw(); }
+    if (!quiet) { busy = true; draw(); }
+    const j = await Auth.api("calendar");
+    busy = false;
+    if (!j.ok) { if (j.auth) return gate(); msg = j.error || "โหลดปฏิทินไม่ได้"; return draw(); }
+    msg = ""; data = j; index(); draw();
+  }
+  function index() {
+    byDay = {};
+    data.rows.forEach(r => { (byDay[r.d] = byDay[r.d] || {})[r.u] = { s: r.s, t: r.t }; });
+    if (!sel.length) { const t = data.today || bkkToday(); sel = [t >= START && t <= END ? t : START]; mi = Math.max(0, months.findIndex(o => o.y === parts(sel[0]).y && o.m === parts(sel[0]).m)); }
+  }
+  const counts = d => { const c = { free: 0, half: 0, busy: 0 }; Object.values(byDay[d] || {}).forEach(o => { if (c[o.s] != null) c[o.s]++; }); return c; };
+
+  /* ---------- sign-in gate ---------- */
+  function gate() {
+    clearInterval(timer);
+    app.innerHTML = `<div class="card gate"><div id="lg"></div></div>`;
+    Auth.form($("#lg"), { title: "เข้าสู่ระบบเพื่อใช้ปฏิทินทีม", lead: "ใช้บัญชีเดียวกับหน้าแบบสอบถาม ปฏิทินนี้เห็นเฉพาะคนในทีมที่เข้าสู่ระบบ",
+      demo: { label: "ลองโหมดตัวอย่าง", user: { username: "demo", name: "ผู้เก็บสาธิต", role: "enumerator", enumerator: 1 } },
+      onDone: () => start() });
+  }
+
+  /* ---------- drawing ---------- */
+  function draw() {
+    if (!data) { app.innerHTML = `<p class="sync">${busy ? "กำลังโหลดปฏิทิน…" : esc(msg)}</p>`; return; }
+    const { y, m } = months[mi], today = data.today || bkkToday();
+    const first = iso(y, m, 1), lead = dowOf(first), days = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    let cells = WD.map((w, k) => `<div class="wd${k === 0 || k === 6 ? " we" : ""}" aria-hidden="true">${w}</div>`).join("");
+    for (let k = 0; k < lead; k++) cells += `<div class="day out" aria-hidden="true"></div>`;
+    for (let d = 1; d <= days; d++) {
+      const s = iso(y, m, d), c = counts(s), mine = (byDay[s] || {})[data.me], dw = dowOf(s);
+      const cls = ["day", dw === 0 || dw === 6 ? "we" : "", s < today ? "past" : "", s === today ? "today" : "", mine && mine.s ? "me-" + mine.s : "", sel.includes(s) ? "sel" : ""].filter(Boolean).join(" ");
+      const label = `${longDate(s)} ว่าง ${c.free} คน ว่างบางช่วง ${c.half} คน ไม่ว่าง ${c.busy} คน${mine && mine.s ? " ของคุณ: " + ST[mine.s] : ""}`;
+      const notes = Object.values(byDay[s] || {}).filter(o => o.t).length;
+      cells += `<button class="${cls}" data-d="${s}" aria-pressed="${sel.includes(s)}" aria-label="${esc(label)}">
+        <span class="n">${d}</span>${notes ? `<span class="note" aria-hidden="true">✎${notes > 1 ? notes : ""}</span>` : "<span></span>"}
+        <span class="cnt" aria-hidden="true">${c.free ? `<span><i class="dot free"></i>${c.free}</span>` : ""}${c.half ? `<span><i class="dot half"></i>${c.half}</span>` : ""}${c.busy ? `<span><i class="dot busy"></i>${c.busy}</span>` : ""}</span></button>`;
+    }
+    const monthBtns = months.map((o, k) => `<button data-m="${k}" aria-pressed="${k === mi}">${MON_S[o.m]} ${String(o.y + 543).slice(2)}</button>`).join("");
+    app.innerHTML = `
+      ${isDemo() ? `<p class="notice">โหมดตัวอย่าง: ที่ลงไว้เก็บในเครื่องนี้เท่านั้น ไม่มีใครเห็น</p>` : ""}
+      ${msg ? `<p class="notice err" role="alert">${esc(msg)}</p>` : ""}
+      <div class="months" role="group" aria-label="เลือกเดือน"><button class="arrow" data-step="-1" aria-label="เดือนก่อน" ${mi === 0 ? "disabled" : ""}>‹</button>${monthBtns}<button class="arrow" data-step="1" aria-label="เดือนถัดไป" ${mi === months.length - 1 ? "disabled" : ""}>›</button></div>
+      <div class="layout">
+        <section class="cal" aria-label="ปฏิทิน">
+          <div class="cal-top"><h2>${MON[m]} ${y + 543}</h2>
+            <div class="row"><label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="multi" ${multi ? "checked" : ""}> เลือกหลายวัน</label>
+            <span class="sync" id="sync">${busy ? "กำลังบันทึก…" : ""}</span></div></div>
+          <div class="grid">${cells}</div>
+        </section>
+        <div class="panel">${dayPanel()}${bestPanel(y, m)}</div>
+      </div>`;
+    wire();
+  }
+
+  function dayPanel() {
+    if (!sel.length) return `<section class="card" aria-label="วันที่เลือก"><div><p class="eyebrow">เลือกหลายวัน</p><h3>แตะวันที่ต้องการในปฏิทิน</h3></div><p class="small muted">เลือกได้หลายวัน แล้วกำหนดสถานะและโน้ตเดียวกันให้ทุกวันที่เลือกในครั้งเดียว เช่น ลงว่างทุกเสาร์–อาทิตย์ของเดือน</p></section>`;
+    const today = data.today || bkkToday();
+    const editable = sel.filter(d => d >= today);
+    const one = sel.length === 1 ? sel[0] : null;
+    const mine = one ? (byDay[one] || {})[data.me] || {} : {};
+    const head = one ? longDate(one) : `เลือกไว้ ${sel.length} วัน`;
+    const list = one ? data.members.map(p => {
+      const o = (byDay[one] || {})[p.u] || {};
+      return `<li><span class="nm">${esc(p.n)}${p.u === data.me ? ' <span class="muted small">(คุณ)</span>' : ""}</span><span class="st ${o.s || "none"}">${o.s ? ST[o.s] : "ยังไม่ระบุ"}</span>${o.t ? `<span class="nt">${esc(o.t)}</span>` : ""}</li>`;
+    }).join("") : "";
+    const edit = editable.length ? `
+      <div class="seg" role="group" aria-label="สถานะของคุณ">${Object.entries(ST).map(([k, v]) => `<button data-s="${k}" aria-pressed="${mine.s === k}"><i class="dot ${k}"></i>${v}</button>`).join("")}</div>
+      <label class="fld"><span class="small">โน้ต <span class="muted">(ไม่เกิน 200 ตัวอักษร · ทุกคนในทีมเห็น ไม่ต้องใส่เรื่องส่วนตัว)</span></span>
+        <textarea id="note" maxlength="200" placeholder="เช่น ว่างหลังบ่ายโมง, มีรถ, อยู่บุรีรัมย์">${esc(mine.t || "")}</textarea></label>
+      <div class="row"><button class="btn primary sm" id="save">บันทึก${sel.length > 1 ? ` ${editable.length} วัน` : ""}</button><button class="btn ghost sm" id="clr">ล้างของฉัน</button></div>
+      ${editable.length < sel.length ? `<p class="small muted">วันที่ผ่านไปแล้ว ${sel.length - editable.length} วันจะไม่ถูกแก้</p>` : ""}`
+      : `<p class="small muted">วันนี้ผ่านไปแล้ว ดูได้อย่างเดียว</p>`;
+    return `<section class="card" aria-label="วันที่เลือก"><div><p class="eyebrow">วันที่เลือก</p><h3>${esc(head)}</h3></div>${edit}
+      ${one ? `<div><p class="small" style="font-weight:600;margin-bottom:4px">ทั้งทีม (${data.members.length} คน)</p><ul class="team">${list}</ul></div>` : ""}</section>`;
+  }
+
+  function bestPanel(y, m) {
+    const today = data.today || bkkToday(), days = new Date(Date.UTC(y, m + 1, 0)).getUTCDate(), arr = [];
+    for (let d = 1; d <= days; d++) { const s = iso(y, m, d); if (s < today) continue; const c = counts(s); if (c.free + c.half) arr.push({ s, c }); }
+    arr.sort((a, b) => (b.c.free - a.c.free) || (b.c.half - a.c.half) || (a.c.busy - b.c.busy) || a.s.localeCompare(b.s));
+    const top = arr.slice(0, 5);
+    return `<section class="card" aria-label="วันที่คนว่างมากที่สุด"><h3>วันที่คนว่างมากที่สุดเดือนนี้</h3>
+      ${top.length ? `<ul class="best">${top.map(o => `<li><button data-go="${o.s}"><span>${shortDate(o.s)}</span><span class="num small">ว่าง ${o.c.free}${o.c.half ? ` · บางช่วง ${o.c.half}` : ""}${o.c.busy ? ` · ไม่ว่าง ${o.c.busy}` : ""}</span></button></li>`).join("")}</ul>` : `<p class="small muted">ยังไม่มีใครลงวันว่างในเดือนนี้</p>`}</section>`;
+  }
+
+  function wire() {
+    app.querySelectorAll("[data-m]").forEach(b => b.onclick = () => { mi = +b.dataset.m; draw(); });
+    app.querySelectorAll("[data-step]").forEach(b => b.onclick = () => { mi = Math.max(0, Math.min(months.length - 1, mi + +b.dataset.step)); draw(); });
+    $("#multi").onchange = e => { multi = e.target.checked; const last = sel[sel.length - 1] || data.today || START; sel = multi ? [] : [last]; draw(); };
+    app.querySelectorAll(".day[data-d]").forEach(b => b.onclick = () => {
+      const d = b.dataset.d;
+      if (multi) sel = sel.includes(d) ? sel.filter(x => x !== d) : sel.concat(d).sort();
+      else sel = [d];
+      draw();
+      if (!multi && window.matchMedia("(max-width:900px)").matches) $(".panel").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    app.querySelectorAll("[data-go]").forEach(b => b.onclick = () => { sel = [b.dataset.go]; multi = false; draw(); });
+    let pick = null;
+    app.querySelectorAll(".seg button").forEach(b => b.onclick = () => {
+      pick = b.dataset.s;
+      app.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.s === pick)));
+    });
+    const cur = sel.length === 1 ? ((byDay[sel[0]] || {})[data.me] || {}).s || "" : "";
+    const sv = $("#save"); if (sv) sv.onclick = () => { if (sel.length > 1 && pick == null) { msg = "เลือกสถานะก่อนบันทึกหลายวัน"; return draw(); } save(pick == null ? cur : pick, $("#note").value); };
+    const cl = $("#clr"); if (cl) cl.onclick = () => save("", "");
+  }
+
+  async function save(st, note) {
+    const today = data.today || bkkToday(), days = sel.filter(d => d >= today);
+    if (!days.length) return;
+    if (isDemo()) { data = demoSave(days, st, note.trim()); index(); msg = ""; return draw(); }
+    busy = true; $("#sync").textContent = "กำลังบันทึก…"; app.querySelectorAll("#save,#clr").forEach(b => b.disabled = true);
+    const j = await Auth.api("setDay", { days, s: st, t: note.trim() });
+    busy = false;
+    if (!j.ok) { if (j.auth) return gate(); msg = j.error || "บันทึกไม่สำเร็จ"; return draw(); }
+    msg = ""; data = j; index(); draw();
+    const s = $("#sync"); if (s) { s.textContent = "บันทึกแล้ว"; setTimeout(() => { if (s.isConnected) s.textContent = ""; }, 2500); }
+  }
+
+  function start() {
+    const s = Auth.get();
+    if (Auth.connected && (!s || s.user.mustChange)) return gate();
+    load();
+    clearInterval(timer);
+    timer = setInterval(() => { if (!document.hidden && !busy && !isDemo()) load(true); }, 120000);
+  }
+  Auth.onChange(s => { if (!s) { data = null; gate(); } });
+  start();
+})();
+</script>
+</body>
+</html>

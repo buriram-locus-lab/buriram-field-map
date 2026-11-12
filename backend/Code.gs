@@ -46,7 +46,7 @@ var API = {
   data: apiData_, detail: apiDetail_, contacts: apiContacts_, deleteContacts: apiDeleteContacts_, exportCsv: apiExport_,
   users: apiUsers_, addUser: apiAddUser_, resetPassword: apiResetPassword_, setUser: apiSetUser_,
   seedTest: apiSeedTest_, clearTest: apiClearTest_, invite: apiInvite_, invites: apiInvites_, cancelInvite: apiCancelInvite_, checkInvite: apiCheckInvite_,
-  progress: apiProgress_,
+  progress: apiProgress_, calendar: apiCalendar_, setDay: apiSetDay_,
 };
 function doPost(e) {
   var lock = LockService.getScriptLock();
@@ -152,6 +152,47 @@ function apiProgress_(b) {
     a[cell >= 0 ? cell : 4]++;
   });
   return { real: real, test: test, accept: props_().getProperty("ACCEPT") === "1", at: new Date().toISOString() };
+}
+
+/* ---------------- team calendar: who is free on which day (any signed-in account) ----------------
+   Sheet "ตารางว่าง": one row per account per day. Everyone signed in sees the whole team; each account edits only its own days.
+   Range: from the first day of the current month to CAL_END. Past days cannot be changed. */
+var CAL_SHEET = "ตารางว่าง", CAL_HEADER = ["date", "username", "name", "status", "note", "updated"], CAL_END = "2027-04-30";
+var CAL_STATUS = { free: "ว่าง", busy: "ไม่ว่าง", half: "ว่างบางช่วง" };
+function calISO_(v) { return v instanceof Date ? Utilities.formatDate(v, TZ, "yyyy-MM-dd") : String(v || "").slice(0, 10); }
+function calRows_() {
+  var sh = sheet_(CAL_SHEET, CAL_HEADER), v = sh.getDataRange().getValues();
+  return v.slice(1).map(function (r, k) { return { row: k + 2, d: calISO_(r[0]), u: String(r[1]).toLowerCase(), n: String(r[2] || ""), s: String(r[3] || ""), t: String(r[4] || "") }; });
+}
+function apiCalendar_(b) {
+  var me = auth_(b.token, "any"), today = todayISO_(), from = today.slice(0, 8) + "01";
+  var rows = calRows_().filter(function (o) { return o.d >= from && o.d <= CAL_END && (o.s || o.t); })
+    .map(function (o) { return { d: o.d, u: o.u, s: o.s, t: o.t }; });
+  var members = readUsers_().filter(function (u) { return u.active; })
+    .map(function (u) { return { u: u.username, n: String(u.name || u.username), role: u.role, e: u.enumerator || 0 }; });
+  return { me: me.username, today: today, from: from, to: CAL_END, members: members, rows: rows };
+}
+function apiSetDay_(b) {
+  var me = auth_(b.token, "any"), today = todayISO_();
+  var days = [].concat(b.days || b.d || []).map(String).filter(function (d) { return /^\d{4}-\d{2}-\d{2}$/.test(d); });
+  if (!days.length) throw new Error("ไม่ได้เลือกวัน");
+  if (days.length > 62) throw new Error("เลือกได้ครั้งละไม่เกิน 62 วัน");
+  var s = String(b.s || ""), t = String(b.t || "").replace(/[\r\n]+/g, " ").trim().slice(0, 200);
+  if (s && !CAL_STATUS[s]) throw new Error("สถานะไม่ถูกต้อง");
+  days.forEach(function (d) {
+    if (d < today) throw new Error("วันที่ " + d + " ผ่านไปแล้ว แก้ไม่ได้");
+    if (d > CAL_END) throw new Error("ปฏิทินเปิดถึง " + CAL_END + " เท่านั้น");
+  });
+  var sh = sheet_(CAL_SHEET, CAL_HEADER), rows = calRows_(), idx = {};
+  rows.forEach(function (o) { if (o.u === me.username) idx[o.d] = o.row; });
+  var stamp = new Date(), name = String(me.name || me.username);
+  days.forEach(function (d) {
+    var vals = ["'" + d, me.username, name, s, t, stamp];
+    if (idx[d]) sh.getRange(idx[d], 1, 1, vals.length).setValues([vals]);
+    else sh.appendRow(vals);
+  });
+  log_(me.username, "ปฏิทิน: " + (s ? CAL_STATUS[s] : "ล้าง") + " " + days.length + " วัน");
+  return apiCalendar_(b);
 }
 
 /* ---------------- data (admin only) ---------------- */
