@@ -179,8 +179,11 @@ function invRows_() {
   return v.slice(1).map(function (r, k) { return { row: k + 2, id: String(r[0]), user: String(r[1]), issued: new Date(r[2]).getTime(), x: new Date(r[3]).getTime(), status: String(r[4] || "") }; });
 }
 function usedInviteIds_() {
-  var v = sheet_(SHEETS.responses, RESP_HEADER).getDataRange().getValues(), h = v[0].map(String), ii = h.indexOf("inv"), used = {};
-  if (ii >= 0) for (var i = 1; i < v.length; i++) if (v[i][ii]) used[String(v[i][ii])] = true;
+  var used = {};
+  [SHEETS.responses, PILOT_SHEETS.responses].forEach(function (name) {
+    var v = sheet_(name, RESP_HEADER).getDataRange().getValues(), h = v[0].map(String), ii = h.indexOf("inv");
+    if (ii >= 0) for (var i = 1; i < v.length; i++) if (v[i][ii]) used[String(v[i][ii])] = true;
+  });
   return used;
 }
 /** The collector's QR that still take up one of the 3 places. */
@@ -190,11 +193,13 @@ function openInvites_(username) {
     .map(function (o) { return { id: o.id, issued: o.issued, startBy: o.x }; });
 }
 function apiInvite_(b) {
-  var u = auth_(b.token, "collector"), venue = Math.max(1, Math.min(3, +b.venue || 1));
+  var u = auth_(b.token, "collector"), venue = Math.max(1, Math.min(3, +b.venue || 1)), ph = phase_();
+  var set = ["test", "pilot", "live"].indexOf(b.dataset) >= 0 ? b.dataset : ph;
+  if (set !== "test" && set !== ph) throw new Error("ชุดข้อมูล “" + set + "” ยังไม่เปิด ผู้ดูแลต้องเปิดด้วยรหัสก่อน");
   var open = openInvites_(u.username);
   if (open.length >= INVITE_MAX) throw new Error("มี QR ที่ยังเปิดอยู่ครบ " + INVITE_MAX + " ใบแล้ว ผู้เก็บหนึ่งคนดูแลผู้ตอบพร้อมกันได้ไม่เกิน " + INVITE_MAX + " คน รอให้ผู้ตอบส่งคำตอบ หรือยกเลิก QR ใบที่ไม่ได้ใช้ก่อน");
   var id = Utilities.getUuid().replace(/-/g, "").slice(0, 12), now = Date.now(), x = now + INVITE_MINUTES * 6e4;
-  var body = b64_(JSON.stringify({ k: "inv", i: id, u: u.username, e: u.enumerator, v: venue, x: x }));
+  var body = b64_(JSON.stringify({ k: "inv", i: id, u: u.username, e: u.enumerator, v: venue, x: x, s: set }));
   sheet_(INV_SHEET, INV_HEADER).appendRow([id, u.username, new Date(now), new Date(x), ""]);
   log_(u.username, "สร้าง QR ให้ผู้ตอบ " + id);
   open.push({ id: id, issued: now, startBy: x });
@@ -228,14 +233,17 @@ function readInvite_(t, graceMin) {
   return o;
 }
 function inviteUsed_(id) {
-  var v = sheet_(SHEETS.responses, RESP_HEADER).getDataRange().getValues(), h = v[0].map(String), ii = h.indexOf("inv"), ri = h.indexOf("rid");
-  if (ii < 0) return null;
-  for (var i = 1; i < v.length; i++) if (String(v[i][ii]) === String(id)) return String(v[i][ri]);
-  return null;
+  var hit = null;
+  [SHEETS.responses, PILOT_SHEETS.responses].forEach(function (name) {
+    if (hit) return;
+    var v = sheet_(name, RESP_HEADER).getDataRange().getValues(), h = v[0].map(String), ii = h.indexOf("inv"), ri = h.indexOf("rid");
+    if (ii >= 0) for (var i = 1; i < v.length; i++) if (String(v[i][ii]) === String(id)) { hit = String(v[i][ri]); break; }
+  });
+  return hit;
 }
 /** Before the respondent starts: is this QR still good? Answers only yes/no and the collector number, nothing else. */
 function apiCheckInvite_(b) {
   var o = readInvite_(b.invite);
   if (inviteUsed_(o.i)) throw new Error("QR นี้ถูกใช้ตอบไปแล้ว หนึ่ง QR ใช้ได้หนึ่งคน ขอ QR ใหม่จากผู้เก็บข้อมูล");
-  return { enumerator: o.e, venue: o.v, startBy: o.x, minutes: INVITE_MINUTES };
+  return { enumerator: o.e, venue: o.v, startBy: o.x, minutes: INVITE_MINUTES, dataset: o.s || phase_() };
 }

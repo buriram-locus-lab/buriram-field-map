@@ -67,6 +67,7 @@ dialog pre{font-family:var(--f-mono);font-size:.76rem;background:var(--sunk);bor
 #msg:empty{display:none}
 #loginbox .login{max-width:none}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media (max-width:820px){.grid2{grid-template-columns:1fr}}
+table.dl{width:100%;border-collapse:collapse;font-size:.88rem}table.dl th,table.dl td{padding:6px 8px;border-top:1px solid var(--line);text-align:left}table.dl td.num,table.dl th.num{text-align:right;font-family:var(--f-mono)}.tblwrap{overflow-x:auto}
 </style>
 <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="../assets/favicon-32.png" sizes="32x32" type="image/png">
@@ -266,18 +267,29 @@ dialog pre{font-family:var(--f-mono);font-size:.76rem;background:var(--sunk);bor
       api("setUser", { username: name, enumerator: +s.value || 0 }).then(function (j) { if (!j.ok) { fail(j); USERS = null; return renderUsers(); } msg("เปลี่ยนเลขผู้เก็บของ " + name + " แล้ว"); USERS = null; renderUsers(); }); };
   }
   function renderExport() {
-    $("#px").innerHTML = '<div class="card" style="display:grid;gap:12px"><h3>ดาวน์โหลดชุดข้อมูล</h3><p class="small muted">ไฟล์ CSV (UTF-8 เปิดด้วย Excel, Stata, R ได้) หนึ่งแถวต่อผู้ตอบ ใช้รหัสผู้ตอบเป็นตัวระบุ ไม่มีชื่อ ไม่มีเบอร์โทร ทุกครั้งที่ดาวน์โหลดถูกบันทึกในชีต “บันทึกระบบ”</p>' +
-      '<label class="small"><input type="checkbox" id="xt"' + (D && D.phase !== "live" ? " checked" : "") + '> รวมข้อมูลทดสอบ <span class="muted">(ยังไม่เปิดเก็บจริง ข้อมูลทั้งหมดตอนนี้เป็นข้อมูลทดสอบ ต้องติ๊กช่องนี้ไฟล์จึงจะมีข้อมูล)</span></label><div class="tools"><button class="btn primary" data-w="responses">คำตอบทั้งหมด (responses.csv)</button><button class="btn" data-w="conjoint">การเลือกคู่ผู้สมัคร (conjoint.csv)</button></div>' +
-      '<div class="tools"><button class="btn ghost" data-w="pilot">คำตอบนำร่อง (pilot.csv)</button><button class="btn ghost" data-w="pilot_conjoint">คู่ผู้สมัคร นำร่อง (pilot_conjoint.csv)</button></div>' +
-      '<p class="small muted">คอลัมน์: code, rid (เลขอ้างอิงฟอร์ม), collector, received, test, flag, started, finished, seconds, mode (0 กระดาษ · 1 อ่านให้ฟัง · 3 QR · 2 ออนไลน์ปิดแล้ว), venue, enumerator, version, order, gsize, gcode, q1 … q64 ตามแบบสอบถามฉบับ 1.8 (q1m เดือนเกิด, q8b อาชีพรอง, q12b ช่วงรายได้, q64a–q64d บันทึกผู้เก็บ), ipc_I, ipc_P, ipc_C (0–18 ต่อด้าน)</p></div>';
-    $("#px").onclick = function (e) { var b = e.target.closest("button[data-w]"); if (!b) return;
+    var SETS = [["test", "ทดสอบ"], ["pilot", "นำร่อง"], ["live", "เก็บจริง"]], KINDS = [["responses", "คำตอบ"], ["conjoint", "คู่ผู้สมัคร"], ["ipc24", "IPC 24 ข้อ"]];
+    $("#px").innerHTML = '<div class="card" style="display:grid;gap:12px"><h3>ดาวน์โหลดชุดข้อมูล</h3><p class="small muted">ไฟล์ CSV (UTF-8 เปิดด้วย Excel, Stata, R ได้) แยกตามชุดข้อมูลที่เลือกไว้ก่อนตอบ ใช้รหัสผู้ตอบเป็นตัวระบุ ไม่มีชื่อ ไม่มีเบอร์โทร ทุกครั้งที่ดาวน์โหลดถูกบันทึกในชีต “บันทึกระบบ”</p>' +
+      '<table class="dl"><thead><tr><th>ชุดข้อมูล</th>' + KINDS.map(function (k) { return "<th>" + k[1] + "</th>"; }).join("") + '</tr></thead><tbody>' +
+      SETS.map(function (st) { return '<tr><th>' + st[1] + (D && D.phase === st[0] ? ' <span class="chip mint"><i></i>เปิดอยู่</span>' : "") + '</th>' + KINDS.map(function (k) { return '<td><button class="btn' + (k[0] === "responses" ? " primary" : "") + ' small" data-set="' + st[0] + '" data-kind="' + k[0] + '">CSV</button></td>'; }).join("") + '</tr>'; }).join("") +
+      '</tbody></table>' +
+      '<p class="small muted">คอลัมน์คำตอบ: code, rid, collector, received, test, flag, started, finished, seconds, mode, venue, enumerator, version, order, gsize, gcode, q1 … q64 (เลขภายในตามฉบับ 1.8), ipc_I, ipc_P, ipc_C · คอลัมน์ IPC 24 ข้อ: id, dataset, main_code, L1–L24 (−3…+3 ตามเลขข้อของ Levenson), I, P, C (0–48), lean</p></div>' +
+      '<div class="card" style="display:grid;gap:10px;margin-top:14px"><h3>ผล IPC 24 ข้อ (ล่าสุด)</h3><p class="small muted">เห็นเฉพาะผู้ดูแล ไม่แสดงให้ผู้ตอบ</p><div id="ipcl" class="small muted">กำลังโหลด…</div></div>';
+    $("#px").onclick = function (e) { var b = e.target.closest("button[data-set]"); if (!b) return;
       if (demo()) return msg("โหมดตัวอย่าง: ดาวน์โหลดได้เมื่อเชื่อมหลังบ้านแล้ว", true);
-      b.disabled = true; api("exportCsv", { which: b.dataset.w, includeTest: $("#xt").checked }).then(function (j) { b.disabled = false; if (!j.ok) return fail(j);
+      b.disabled = true; api("exportCsv", { set: b.dataset.set, kind: b.dataset.kind }).then(function (j) { b.disabled = false; if (!j.ok) return fail(j);
         var a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([j.csv], { type: "text/csv;charset=utf-8" })); a.download = j.name; a.click();
-        if (!j.rows && j.testRows) msg("ไฟล์มีแต่หัวตาราง เพราะมีแต่ข้อมูลทดสอบ " + j.testRows + " แถว ติ๊ก “รวมข้อมูลทดสอบ” แล้วดาวน์โหลดใหม่", true);
-        else if (!j.rows) msg("ไฟล์มีแต่หัวตาราง ยังไม่มีคำตอบในชีตนี้", true);
-        else msg("ดาวน์โหลด " + j.rows + " แถว"); }); };
+        msg(j.rows ? "ดาวน์โหลด " + j.rows + " แถว" : "ไฟล์มีแต่หัวตาราง ยังไม่มีข้อมูลในชุดนี้", !j.rows); }); };
+    if (demo()) { $("#ipcl").textContent = "โหมดตัวอย่าง"; return; }
+    api("ipcList").then(function (j) {
+      if (!j.ok) { $("#ipcl").textContent = j.error || "โหลดไม่ได้"; return; }
+      if (!j.rows.length) { $("#ipcl").textContent = "ยังไม่มีคำตอบ"; return; }
+      var L = { I: "ตนเอง", P: "ผู้มีอำนาจ", C: "โชคชะตา", none: "ไม่เด่นชัด" }, S = { test: "ทดสอบ", pilot: "นำร่อง", live: "จริง" };
+      $("#ipcl").className = ""; $("#ipcl").innerHTML = '<div class="tblwrap"><table class="dl"><thead><tr><th>เวลา</th><th>ชุด</th><th>ผู้เก็บ</th><th>รหัสหลัก</th><th class="num">I</th><th class="num">P</th><th class="num">C</th><th>เอนไปทาง</th><th class="num">ตอบ</th></tr></thead><tbody>' +
+        j.rows.map(function (r) { return '<tr><td class="num">' + esc(String(r.at).slice(0, 16).replace("T", " ")) + '</td><td>' + esc(S[r.set] || r.set) + '</td><td>' + esc(r.by) + '</td><td>' + esc(r.main || "–") + '</td><td class="num">' + esc(r.I === "" ? "–" : r.I) + '</td><td class="num">' + esc(r.P === "" ? "–" : r.P) + '</td><td class="num">' + esc(r.C === "" ? "–" : r.C) + '</td><td>' + esc(L[r.lean] || "–") + '</td><td class="num">' + esc(r.n) + '/24</td></tr>'; }).join("") +
+        '</tbody></table></div><p class="small muted">ทั้งหมด ' + j.total + ' ชุด แสดงล่าสุด ' + j.rows.length + ' ชุด</p>';
+    });
   }
+
   function renderSettings() {
     $("#ps").innerHTML = '<div class="card" style="display:grid;gap:8px"><h3>ข้อมูลทดสอบ</h3><p class="small muted">ใช้ทดสอบระบบก่อน EC อนุมัติ ทุกแถวมีค่า test = 1 และลบออกได้ทั้งหมด</p><div class="tools"><button class="btn" id="seed">สร้างข้อมูลทดสอบ 30 ชุด</button><button class="btn" id="clr">ลบข้อมูลทดสอบทั้งหมด</button></div></div>' +
       '<div class="danger-zone"><h3>ลบเบอร์ติดต่อทั้งหมด</h3><p class="small">ทำเมื่อสัมภาษณ์รอบ 2 เสร็จ ตามที่แจ้งคณะกรรมการจริยธรรมฯ' + (D.deleteBy ? ' (กำหนดภายใน ' + esc(D.deleteBy) + ')' : '') + ' ลบแล้วกู้คืนไม่ได้ พิมพ์ <b>ลบเบอร์ทั้งหมด</b> เพื่อยืนยัน</p><div class="tools"><input id="cf" placeholder="ลบเบอร์ทั้งหมด" aria-label="ข้อความยืนยัน"><button class="btn" id="del" disabled style="color:var(--bad)">ลบเบอร์ ' + D.contacts + ' รายการ</button></div></div>' +

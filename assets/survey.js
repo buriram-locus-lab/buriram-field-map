@@ -9,7 +9,12 @@
   /* Collection phase, set on the server by an admin (codes pilot / begin / test typed on this page) and read when the page opens:
      test  → records saved but marked test = 1 · pilot → field pilot (Stage 1.2), kept in separate sheets · live → main survey */
   let PHASE = (() => { try { const v = JSON.parse(localStorage.getItem("bfm.phase")); if (["test", "pilot", "live"].includes(v)) return v; } catch (e) {} return CONFIG.test ? "test" : "live"; })();
-  const isTestRun = () => PHASE === "test", isPilot = () => PHASE === "pilot";
+  /* The dataset of this form (test / pilot / live) is chosen on the first screen. The server phase decides which are open:
+     test always · pilot only while the phase is pilot · live only while the phase is live. A QR form takes its dataset from the QR. */
+  const SETS = { test: "ทดสอบ", pilot: "นำร่อง", live: "เก็บจริง" };
+  const setOpen = k => k === "test" || k === PHASE;
+  const curSet = () => { const k = st && st.meta && st.meta.dataset; return k && SETS[k] ? k : PHASE; };
+  const isTestRun = () => curSet() === "test", isPilot = () => curSet() === "pilot";
   const PH_LABEL = { test: "โหมดทดสอบระบบ", pilot: "โหมดนำร่อง (ขั้น 1.2 · อ.ชุมพลบุรี)", live: "เก็บข้อมูลจริง (ขั้น 1.3)" };
   const store = {
     get(k, d) { try { const v = localStorage.getItem("bfm." + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -258,6 +263,8 @@
       ${!DEMO ? `<div class="notice ${isPilot() ? "acc" : isTestRun() ? "" : "ok"}" id="phasebox">${phaseNote()}</div>` : ""}
       ${INV ? `<div class="notice acc" id="invbox">กำลังตรวจ QR…</div>` : ""}
       <div class="admin" ${INV ? `style="display:none"` : ""}>
+        ${!DEMO ? `<fieldset class="q" id="set-q"><legend class="qh"><span class="qt">ชุดข้อมูล</span><span class="qhint">เลือกก่อนเริ่ม คำตอบชุดนี้จะถูกเก็บแยกตามที่เลือก</span></legend><div class="opts row">
+          ${Object.entries(SETS).map(([k, t]) => `<label class="opt${setOpen(k) ? "" : " off"}"><input type="radio" name="dataset" value="${k}" ${curSet() === k ? "checked" : ""} ${setOpen(k) ? "" : "disabled"}><span class="box" aria-hidden="true"></span><span class="ot">${t}${setOpen(k) ? "" : ` <small class="muted">(${k === "pilot" ? "ผู้ดูแลเปิดด้วยรหัส pilot" : "ผู้ดูแลเปิดด้วยรหัส begin"} หลังได้ใบ EC)</small>`}</span></label>`).join("")}</div></fieldset>` : ""}
         <fieldset class="q"><legend class="qh"><span class="qt">วิธีตอบ</span></legend><div class="opts row">
           ${[[1, "ผู้เก็บข้อมูลอ่านให้ฟัง"], [0, "คีย์จากฟอร์มกระดาษ (ผู้ตอบกรอกเอง)"], [3, "ให้ผู้ตอบสแกน QR ทำในโทรศัพท์ตัวเอง ต่อหน้าผู้เก็บข้อมูล"]].map(([c, t]) => `<label class="opt"><input type="radio" name="mode" value="${c}" ${st.meta.mode === c ? "checked" : ""}><span class="box"></span><span class="ot">${t}</span></label>`).join("")}</div></fieldset>
         <fieldset class="q" id="venue-q"><legend class="qh"><span class="qt">สถานที่พบผู้ตอบ <em class="muted">(ผู้เก็บข้อมูลเลือก)</em></span></legend><div class="opts row">
@@ -272,12 +279,14 @@
       </div>
       <p class="consent" id="consent"></p>
       <div class="nav"><span></span><button class="btn primary" id="start">เริ่มตอบ</button></div>
+      ${!INV ? `<div class="ipcbox"><p class="small"><b>แบบทดลอง IPC 24 ข้อ</b> <span class="muted">แยกจากแบบสอบถามหลัก ใช้ทดสอบอำนาจจำแนกของมาตรวัด (Levenson, 1981) ใช้ชุดข้อมูลเดียวกับที่เลือกด้านบน</span></p><button type="button" class="btn ghost small" id="ipc24go">เปิดแบบทดลอง IPC 24 ข้อ</button></div>` : ""}
       ${!DEMO && !INV ? `<form class="phasecode" id="phaseform" autocomplete="off"><label class="fld"><span class="small muted">รหัสเปลี่ยนโหมด <em>(สำหรับผู้วิจัย)</em></span>
         <span class="inrow"><input class="txt short" id="phasecode" name="phasecode" autocapitalize="off" spellcheck="false" aria-describedby="phasehelp"><button class="btn ghost small" type="submit">ใช้รหัส</button></span></label>
         <p class="small muted" id="phasehelp">pilot = เปิดเก็บข้อมูลนำร่อง · begin = เปิดเก็บข้อมูลจริง · test = กลับเป็นโหมดทดสอบ ต้องเข้าสู่ระบบด้วยบัญชีผู้ดูแล</p><div id="phaseconfirm"></div></form>` : ""}
     </section>`;
     app.onchange = e => {
       const t = e.target;
+      if (t.name === "dataset") { st.meta.dataset = t.value; delete st.ans["3"]; delete st.ans["4"]; render(); return; }
       if (t.name === "mode") { st.meta.mode = +t.value; modeUI(); renderWho(); }
       if (t.name === "venue") st.meta.venue = +t.value;
       if (t.name === "gsize") { st.meta.group.size = +t.value; $("#gcode").hidden = st.meta.group.size < 2; }
@@ -287,6 +296,7 @@
     modeUI(); renderWho();
     if (INV) checkInvite();
     const pf = $("#phaseform"); if (pf) pf.onsubmit = e => { e.preventDefault(); phaseCode($("#phasecode").value); };
+    const ig = $("#ipc24go"); if (ig) ig.onclick = openIpc24;
     if (!whoSub) { whoSub = true; Auth.onChange(() => { if (st.screen === "intro") renderWho(); }); }
     $("#start").onclick = () => {
       if (INV) {
@@ -332,7 +342,7 @@
     else {
       const j = await Auth.api("checkInvite", { invite: INV });
       if (!j.ok) { box.className = "notice"; box.innerHTML = `<b>QR นี้ใช้ไม่ได้</b> ${esc(j.error || "")}`; go.disabled = true; return; }
-      invInfo = { enumerator: j.enumerator, venue: j.venue };
+      invInfo = { enumerator: j.enumerator, venue: j.venue }; if (j.dataset && SETS[j.dataset] && st.meta.dataset !== j.dataset) { st.meta.dataset = j.dataset; render(); return; }
     }
     box.innerHTML = `<b>แบบสอบถามนี้ส่งมาจากผู้เก็บข้อมูลเลข ${invInfo.enumerator}</b><br><span class="small">ท่านตอบบนโทรศัพท์ของท่านเองได้เลย ไม่ต้องเข้าสู่ระบบ ใช้เวลาราว 25–30 นาที ขอให้ตอบให้เสร็จตอนนี้ ถ้ามีข้อสงสัยถามผู้เก็บข้อมูลที่อยู่ตรงนี้ได้</span>${INV === "demo" || DEMO ? `<br><span class="small">โหมดตัวอย่าง: QR สาธิต ไม่บันทึกคำตอบ</span>` : ""}`;
     chips();
@@ -403,7 +413,7 @@
     const dlg = qrDialog(); dlg.innerHTML = `<div class="qr-in"><p class="small muted">กำลังสร้าง QR…</p></div>`;
     try {
       if (!fresh) { const j = await qrApi("invites"); qrOpen = j.open; if (qrOpen.length >= QMAX) { drawQR(null); return; } }
-      const j = await qrApi("invite", { venue: st.meta.venue });
+      const j = await qrApi("invite", { venue: st.meta.venue, dataset: curSet() });
       qrOpen = j.open;
       const it = { id: j.id, t: j.invite, venue: st.meta.venue, startBy: j.startBy, demo: j.invite === "demo" };
       if (!it.demo) keepQR(keptQR().concat([it]));
@@ -790,7 +800,7 @@
   function record() {
     const sc = scores();
     return {
-      meta: { id: st.meta.id, code: null, test: DEMO || isTestRun(), phase: !DEMO && isPilot() ? "pilot" : undefined, enumerator: st.meta.enumerator, collector: st.meta.mode === 0 || st.meta.mode === 1 ? st.meta.collector : "", cdate: st.meta.cdate, collectedBE: beYear(st.meta.cdate || todayISO()), started: st.meta.started, finished: new Date().toISOString(), seconds: Math.round((performance.now() - (st.t0 || 0)) / 1000), mode: st.meta.mode, venue: st.meta.venue, design: st.meta.design, version: st.meta.version, order: st.meta.order, gsize: st.meta.mode === 3 ? "" : st.meta.group.size, gcode: st.meta.group.size > 1 ? st.meta.group.code : "", instrument: "v1.9" },
+      meta: { id: st.meta.id, code: null, test: DEMO || isTestRun(), phase: !DEMO && isPilot() ? "pilot" : undefined, dataset: DEMO ? "test" : curSet(), enumerator: st.meta.enumerator, collector: st.meta.mode === 0 || st.meta.mode === 1 ? st.meta.collector : "", cdate: st.meta.cdate, collectedBE: beYear(st.meta.cdate || todayISO()), started: st.meta.started, finished: new Date().toISOString(), seconds: Math.round((performance.now() - (st.t0 || 0)) / 1000), mode: st.meta.mode, venue: st.meta.venue, design: st.meta.design, version: st.meta.version, order: st.meta.order, gsize: st.meta.mode === 3 ? "" : st.meta.group.size, gcode: st.meta.group.size > 1 ? st.meta.group.code : "", instrument: "v1.9" },
       answers: { ...st.ans }, text: { ...st.txt },
       conjoint: (st.cj.tasks || []).map((t, i) => ({ task: i + 1, pair: t.k, item: t.n, chosen: t.choice, ms: t.at, left: strip(t.L, t.design), right: strip(t.Rt, t.design) })),
       ipc: { I: sc.I, P: sc.P, C: sc.C, complete: sc.complete },
@@ -887,6 +897,83 @@
   }
 
   let toastT;
+  /* ---------- IPC 24-item trial (Levenson, 1981): a separate questionnaire in a full-screen dialog ----------
+     Thai draft translation: items 2, 3, 6, 7, 11, 13, 18, 19, 23 as in the main questionnaire (IOC-reviewed); the other 15 are new
+     and need the advisor's review. Each item −3…+3 without 0; subscale = sum + 24 (0–48). Scores are shown on screen only for the
+     test dataset (the researcher trying it); for pilot or live answers they go to the admin page only, never to the respondent. */
+  const IPC24 = [
+    [1, "I", "การที่ฉันจะได้เป็นผู้นำหรือไม่ ขึ้นอยู่กับความสามารถของฉันเป็นหลัก"],
+    [2, "C", "ชีวิตของฉันถูกกำหนดโดยเหตุการณ์ที่เกิดขึ้นโดยบังเอิญเป็นส่วนใหญ่"],
+    [3, "P", "ฉันรู้สึกว่าสิ่งที่เกิดขึ้นในชีวิตของฉัน ถูกกำหนดโดยคนที่มีอำนาจหรือมีตำแหน่งสูงเป็นส่วนใหญ่"],
+    [4, "I", "การที่ฉันจะประสบอุบัติเหตุทางรถหรือไม่ ขึ้นอยู่กับว่าฉันขับขี่ดีแค่ไหนเป็นหลัก"],
+    [5, "I", "เมื่อฉันวางแผนไว้ ฉันค่อนข้างมั่นใจว่าจะทำให้สำเร็จได้"],
+    [6, "C", "หลายครั้งฉันไม่มีทางปกป้องผลประโยชน์ของตนเองจากเรื่องโชคร้ายที่เกิดขึ้นได้เลย"],
+    [7, "C", "เวลาที่ฉันได้สิ่งที่ต้องการ มักเป็นเพราะฉันโชคดี"],
+    [8, "P", "ถึงฉันจะมีความสามารถ ฉันก็จะไม่ได้รับมอบหมายให้เป็นผู้นำ ถ้าไม่เข้าหาคนที่มีอำนาจ"],
+    [9, "I", "การที่ฉันจะมีเพื่อนมากหรือน้อย ขึ้นอยู่กับว่าฉันเป็นคนดีแค่ไหน"],
+    [10, "C", "ฉันมักพบว่า อะไรจะเกิด มันก็ต้องเกิด"],
+    [11, "P", "ชีวิตของฉันถูกควบคุมโดยคนที่มีอำนาจหรือมีตำแหน่งสูงเป็นหลัก"],
+    [12, "C", "การที่ฉันจะประสบอุบัติเหตุทางรถหรือไม่ เป็นเรื่องของโชคเป็นส่วนใหญ่"],
+    [13, "P", "คนอย่างฉันมีโอกาสน้อยมากที่จะปกป้องผลประโยชน์ของตนเองได้ เมื่อผลประโยชน์นั้นขัดกับกลุ่มที่มีอำนาจต่อรองหรือมีพลังกดดันสูง"],
+    [14, "C", "การวางแผนล่วงหน้าไกล ๆ ไม่ใช่เรื่องฉลาดเสมอไปสำหรับฉัน เพราะหลายเรื่องกลายเป็นเรื่องของโชคดีหรือโชคร้าย"],
+    [15, "P", "การจะได้สิ่งที่ต้องการ ฉันต้องทำให้คนที่อยู่เหนือกว่าฉันพอใจ"],
+    [16, "C", "การที่ฉันจะได้เป็นผู้นำหรือไม่ ขึ้นอยู่กับว่าฉันโชคดีพอที่จะอยู่ถูกที่ถูกเวลาหรือเปล่า"],
+    [17, "P", "ถ้าคนสำคัญไม่ชอบฉัน ฉันก็คงมีเพื่อนไม่มากนัก"],
+    [18, "I", "ฉันสามารถกำหนดสิ่งที่จะเกิดขึ้นในชีวิตของฉันได้เป็นส่วนใหญ่"],
+    [19, "I", "โดยปกติฉันสามารถปกป้องผลประโยชน์ของตนเองได้"],
+    [20, "P", "การที่ฉันจะประสบอุบัติเหตุทางรถหรือไม่ ขึ้นอยู่กับผู้ขับขี่คนอื่นเป็นหลัก"],
+    [21, "I", "เวลาที่ฉันได้สิ่งที่ต้องการ มักเป็นเพราะฉันทำงานหนักเพื่อสิ่งนั้น"],
+    [22, "P", "เพื่อให้แผนของฉันสำเร็จ ฉันต้องทำให้แผนนั้นเข้ากับความต้องการของคนที่มีอำนาจเหนือฉัน"],
+    [23, "I", "ชีวิตของฉันถูกกำหนดโดยการกระทำของฉันเอง"],
+    [24, "C", "การที่ฉันจะมีเพื่อนน้อยหรือมาก เป็นเรื่องของโชคชะตาเป็นหลัก"]];
+  const IPC_L = [[-3, "ไม่เห็นด้วยมาก"], [-2, "ไม่เห็นด้วยปานกลาง"], [-1, "ไม่เห็นด้วยเล็กน้อย"], [1, "เห็นด้วยเล็กน้อย"], [2, "เห็นด้วยปานกลาง"], [3, "เห็นด้วยมาก"]];
+  const IPC_D = { I: "ตนเอง (Internal)", P: "ผู้มีอำนาจ (Powerful others)", C: "โชคชะตา (Chance)" };
+  function ipcScore(a) {
+    const out = {}; let n = 0;
+    ["I", "P", "C"].forEach(d => { let s2 = 0, got = 0; IPC24.filter(x => x[1] === d).forEach(([k]) => { const v = a[k]; if (v) { s2 += v; got++; } }); out[d] = got === 8 ? s2 + 24 : null; n += got; });
+    const have = ["I", "P", "C"].filter(d => out[d] != null).sort((x, y) => out[y] - out[x]);
+    out.lean = have.length === 3 ? (out[have[0]] - out[have[1]] <= 3 ? "none" : have[0]) : ""; out.answered = n; return out;
+  }
+  function ipcResultHtml(sc) {
+    const bar = d => `<div class="ipcbar"><span>${IPC_D[d]}</span><span class="track"><i style="width:${(sc[d] / 48 * 100).toFixed(1)}%"></i></span><b class="num">${sc[d]}</b></div>`;
+    const lean = sc.lean === "none" ? "ไม่มีด้านไหนเด่นชัด (ด้านที่สูงสุดกับรองลงมาห่างกันไม่เกิน 3 แต้ม)" : `เอนไปทาง <b>${IPC_D[sc.lean]}</b>`;
+    return `<div class="ipcres"><p>${lean}</p>${["I", "P", "C"].map(bar).join("")}<p class="small muted">แต่ละด้าน 0–48 (8 ข้อ × −3…+3 แล้วบวก 24) กึ่งกลาง 24 · ผลนี้แสดงเฉพาะชุดทดสอบ</p></div>`;
+  }
+  function openIpc24() {
+    const set = DEMO ? "test" : curSet(), se = Auth.get();
+    if (!DEMO && set !== "test" && (!se || se.demo)) { toast("เข้าสู่ระบบด้วยบัญชีผู้เก็บข้อมูลก่อนใช้แบบทดลองกับผู้ตอบจริง"); return; }
+    let dlg = $("#ipcdlg");
+    if (!dlg) { dlg = document.createElement("dialog"); dlg.id = "ipcdlg"; dlg.className = "ipcdlg"; document.body.appendChild(dlg); }
+    const ans = {}, started = new Date().toISOString(), id = "ipc" + Math.random().toString(36).slice(2, 10);
+    dlg.innerHTML = `<form method="dialog" class="ipc-in" id="ipcform">
+      <div class="ipc-head"><div><p class="eyebrow">แบบทดลอง · ชุดข้อมูล ${SETS[set]}</p><h2>ความเชื่อเรื่องสิ่งที่กำหนดชีวิต (24 ข้อ)</h2></div><button type="button" class="btn ghost small" id="ipcx">ปิด</button></div>
+      <p class="small">อ่านข้อความทีละข้อ แล้วเลือกว่าเห็นด้วยหรือไม่เห็นด้วยมากน้อยเพียงใด ไม่มีคำตอบถูกหรือผิด ${set === "test" ? "" : "ผลรายบุคคลจะไม่แสดงบนหน้าจอนี้"}</p>
+      <label class="fld"><span class="small">รหัสผู้ตอบแบบสอบถามหลัก <em>(ถ้าเป็นคนเดียวกัน ไม่บังคับ)</em></span><input class="txt short" id="ipcmain" autocomplete="off" spellcheck="false"></label>
+      <ol class="ipclist">${IPC24.map(([k, , t], i) => `<li><fieldset><legend><span class="num">${i + 1}.</span> ${esc(t)}</legend><div class="ipcopts">${IPC_L.map(([v, l]) => `<label><input type="radio" name="L${k}" value="${v}"><span>${l}</span></label>`).join("")}</div></fieldset></li>`).join("")}</ol>
+      <p class="small muted" id="ipcleft"></p>
+      <div class="ipc-foot">${DEMO || set === "test" ? `<button type="button" class="btn ghost small" id="ipcfill">สุ่มคำตอบ (ทดสอบ)</button>` : "<span></span>"}<button type="button" class="btn primary" id="ipcsend">ส่งคำตอบ</button></div>
+      <div id="ipcout" aria-live="polite"></div></form>`;
+    if (!dlg.open) dlg.showModal();
+    const left = () => { const n = Object.keys(ans).length; $("#ipcleft").textContent = n < 24 ? `ตอบแล้ว ${n}/24 ข้อ` : "ตอบครบ 24 ข้อแล้ว"; };
+    left();
+    dlg.querySelector("#ipcform").onchange = e => { const t = e.target; if (/^L\d+$/.test(t.name)) { ans[+t.name.slice(1)] = +t.value; left(); } };
+    $("#ipcx").onclick = () => { if (Object.keys(ans).length && !dlg.dataset.sent && !confirmClose()) return; dlg.close(); dlg.remove(); };
+    const confirmClose = () => { const b = $("#ipcx"); if (b.dataset.sure) return true; b.dataset.sure = "1"; b.textContent = "แตะอีกครั้งเพื่อปิด (คำตอบจะหาย)"; return false; };
+    const fill = $("#ipcfill"); if (fill) fill.onclick = () => { IPC24.forEach(([k]) => { const v = IPC_L[Math.floor(Math.random() * 6)][0]; ans[k] = v; const r = dlg.querySelector(`input[name="L${k}"][value="${v}"]`); if (r) r.checked = true; }); left(); };
+    $("#ipcsend").onclick = async () => {
+      const n = Object.keys(ans).length, out = $("#ipcout");
+      if (n < 24 && !$("#ipcsend").dataset.sure) { $("#ipcsend").dataset.sure = "1"; out.innerHTML = `<p class="notice warn small">ยังตอบไม่ครบ (${n}/24) ด้านที่ข้อไม่ครบจะไม่ได้คะแนน กด “ส่งคำตอบ” อีกครั้งถ้าต้องการส่งเท่านี้</p>`; return; }
+      const rec = { meta: { id, dataset: set, mode: st.meta.mode === 0 ? 0 : 1, started, finished: new Date().toISOString(), mainCode: $("#ipcmain").value.trim() }, answers: ans };
+      if (DEMO || !CONFIG.endpoint || !se || se.demo) { out.innerHTML = `<p class="notice small">โหมดตัวอย่าง: ไม่ได้ส่งเข้าระบบ</p>${ipcResultHtml(ipcScore(ans))}`; dlg.dataset.sent = "1"; return; }
+      $("#ipcsend").disabled = true; out.innerHTML = `<p class="small muted">กำลังส่ง…</p>`;
+      const j = await Auth.api("submitIpc", { rec });
+      if (!j.ok) { $("#ipcsend").disabled = false; out.innerHTML = `<p class="notice warn small" role="alert">${esc(j.error || "ส่งไม่สำเร็จ")} ลองอีกครั้ง</p>`; return; }
+      dlg.dataset.sent = "1";
+      out.innerHTML = j.scores ? `<p class="notice ok small">บันทึกแล้ว (ชุดทดสอบ)</p>${ipcResultHtml(j.scores)}` : `<p class="notice ok">บันทึกแล้ว ขอบคุณที่ช่วยตอบครับ</p><p class="small muted">ผลรายบุคคลดูได้ในหน้าบัญชีของฉัน (ผู้ดูแล) เท่านั้น</p>`;
+      out.scrollIntoView({ block: "start" });
+    };
+  }
+
   /* ---------- phase: read from the server; changed by an admin with a code ---------- */
   function phaseNote() {
     if (isPilot()) return `<b>${PH_LABEL.pilot}</b><br><span class="small">เก็บเฉพาะผู้ที่อาศัยและมีชื่อในทะเบียนบ้าน อ.ชุมพลบุรี จ.สุรินทร์ คำตอบแยกไว้ในชีตนำร่อง ไม่นำไปทดสอบสมมติฐาน และไม่ขอเบอร์โทรสำหรับระยะที่ 2 รหัสผู้ตอบขึ้นต้นด้วย P-</span>`;
@@ -897,7 +984,7 @@
     if (DEMO || !CONFIG.endpoint) return;
     try {
       const j = await fetch(CONFIG.endpoint, { cache: "no-store" }).then(r => r.json());
-      if (j && ["test", "pilot", "live"].includes(j.phase) && j.phase !== PHASE) { PHASE = j.phase; store.set("phase", PHASE); if (st.screen === "intro" || st.screen === "part") render(); }
+      if (j && ["test", "pilot", "live"].includes(j.phase) && j.phase !== PHASE) { PHASE = j.phase; store.set("phase", PHASE); if (!INV && st.meta && st.meta.dataset && !setOpen(st.meta.dataset)) st.meta.dataset = PHASE; if (st.screen === "intro" || st.screen === "part") render(); }
       else if (j && j.phase) store.set("phase", j.phase);
     } catch (e) { /* offline: keep the last phase seen on this device */ }
   }
@@ -919,7 +1006,7 @@
       $("#phgo").disabled = true;
       const j = await Auth.api("setPhase", { phase: to, ec });
       if (!j.ok) { $("#phgo").disabled = false; toast(j.error || "เปลี่ยนโหมดไม่สำเร็จ"); return; }
-      PHASE = j.phase; store.set("phase", PHASE); delete st.ans["3"]; delete st.ans["4"];
+      PHASE = j.phase; store.set("phase", PHASE); delete st.ans["3"]; delete st.ans["4"]; st.meta.dataset = PHASE;
       toast(`เปลี่ยนเป็น${PH_LABEL[PHASE]}แล้ว`); render();
     };
   }
