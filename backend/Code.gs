@@ -1,7 +1,9 @@
 /* Survey back end on Google Apps Script + Google Sheets. One web app, called by the research website.
    Every request is a POST with a JSON body {action, token?, ...}. A body without action but with meta is a survey record (online answers).
    Script properties (Project Settings → Script properties):
-     ACCEPT    "1" after the ethics committee approves; until then only test records (meta.test) are saved
+     PHASE     "test" | "pilot" | "live" — set by an admin from the survey page (codes pilot / begin / test), with the EC approval number.
+               test: only test records are saved · pilot: field pilot (Stage 1.2) records go to the pilot sheets · live: main survey (Stage 1.3)
+     ACCEPT    kept in step with PHASE ("1" only when live) for older pages
      DELETE_BY date by which phone numbers must be deleted, e.g. 2570-06-30
      SECRET    created by setup(); signs sign-in tokens. Changing it signs everyone out.
      SHEET_ID  optional; leave empty when this script is bound to the spreadsheet
@@ -9,6 +11,8 @@
                       3 online on the respondent's own phone from a collector's one-time QR (code digit = that collector) */
 
 var SHEETS = { responses: "คำตอบ", conjoint: "คู่ผู้สมัคร", contacts: "เบอร์ติดต่อ (ลบหลังสัมภาษณ์)", log: "บันทึกระบบ" };
+var PILOT_SHEETS = { responses: "คำตอบ (นำร่อง)", conjoint: "คู่ผู้สมัคร (นำร่อง)" };   // pilot answers never mix with the main data
+function phase_() { var p = props_(), v = p.getProperty("PHASE"); if (v === "pilot" || v === "live" || v === "test") return v; return p.getProperty("ACCEPT") === "1" ? "live" : "test"; }
 var RESP_HEADER = ["code", "rid", "collector", "inv", "received", "test", "flag", "json"];
 var CONTACT_HEADER = ["code", "phone", "best_time", "consented", "delete_by"];
 var TZ = "Asia/Bangkok";
@@ -46,7 +50,7 @@ var API = {
   data: apiData_, detail: apiDetail_, contacts: apiContacts_, deleteContacts: apiDeleteContacts_, exportCsv: apiExport_,
   users: apiUsers_, addUser: apiAddUser_, resetPassword: apiResetPassword_, setUser: apiSetUser_,
   seedTest: apiSeedTest_, clearTest: apiClearTest_, invite: apiInvite_, invites: apiInvites_, cancelInvite: apiCancelInvite_, checkInvite: apiCheckInvite_,
-  progress: apiProgress_, calendar: apiCalendar_, setDay: apiSetDay_,
+  progress: apiProgress_, calendar: apiCalendar_, setDay: apiSetDay_, setPhase: apiSetPhase_,
 };
 function doPost(e) {
   var lock = LockService.getScriptLock();
@@ -63,7 +67,7 @@ function doPost(e) {
   } finally { try { lock.releaseLock(); } catch (x) {} }
 }
 /** Opening the web app URL in a browser shows nothing but a status line: the data is reached only through the website after signing in. */
-function doGet() { return out_({ ok: true, service: "buriram-survey", accept: props_().getProperty("ACCEPT") === "1" }); }
+function doGet() { var ph = phase_(); return out_({ ok: true, service: "buriram-survey", accept: ph === "live", phase: ph }); }
 
 /* ---------------- collection ---------------- */
 function validDate_(iso) {
@@ -77,8 +81,9 @@ function validDate_(iso) {
 /** Saves one record. The respondent code is issued here, after the form is complete. */
 function apiSubmit_(body) {
   var rec = body.rec || body, m = rec.meta = rec.meta || {};
-  var isTest = !!m.test;
-  if (props_().getProperty("ACCEPT") !== "1" && !isTest) throw new Error("ระบบยังไม่เปิดรับข้อมูลจริง");
+  var isTest = !!m.test, ph = phase_(), pilot = !isTest && m.phase === "pilot";
+  if (pilot && ph !== "pilot") throw new Error("ระบบไม่ได้อยู่ในช่วงนำร่องแล้ว คำตอบนำร่องชุดนี้จึงไม่ถูกบันทึก");
+  if (!isTest && !pilot && ph !== "live") throw new Error(ph === "pilot" ? "ตอนนี้เป็นช่วงนำร่อง ยังไม่เปิดเก็บข้อมูลจริง" : "ระบบยังไม่เปิดรับข้อมูลจริง");
   if (!m.id || String(m.id).length < 6) throw new Error("คำตอบไม่มีเลขอ้างอิง");
   var mode = +m.mode, enumr, collector = "", cdate;
   if (mode === 3) {                                     // answered on the respondent's own phone from a collector's QR
@@ -89,19 +94,21 @@ function apiSubmit_(body) {
   else if (mode === 2) throw new Error("ปิดการตอบออนไลน์ทางไกลแล้ว ทุกชุดต้องตอบต่อหน้าผู้เก็บข้อมูล");
   else if (mode === 0 || mode === 1) { var u = auth_(body.token, "collector"); enumr = u.enumerator; collector = u.username; cdate = validDate_(m.cdate); }
   else throw new Error("ไม่ทราบวิธีตอบ");
-  return saveRecord_(rec, enumr, collector, cdate);
+  return saveRecord_(rec, enumr, collector, cdate, pilot);
 }
-function saveRecord_(rec, enumr, collector, cdate) {
-  var m = rec.meta, isTest = !!m.test;
-  var R = sheet_(SHEETS.responses, RESP_HEADER);
+function saveRecord_(rec, enumr, collector, cdate, pilot) {
+  var m = rec.meta, isTest = !!m.test, SH = pilot ? PILOT_SHEETS : SHEETS;
+  if (pilot) delete rec.contact;                             // pilot respondents are not invited to Phase 2: no phone number is kept
+  var R = sheet_(SH.responses, RESP_HEADER);
   var data = R.getDataRange().getValues(), header = data[0].map(String), ci = header.indexOf("code"), ri = header.indexOf("rid"), ji = header.indexOf("json");
   for (var i = 1; i < data.length; i++) if (ri >= 0 && String(data[i][ri]) === String(m.id)) return { code: String(data[i][ci]), again: true };   // the same form sent twice
   var codes = data.slice(1).map(function (r) { return String(r[ci]); });
 
-  var code = issueCode(rec, LGUS, cdate, enumr, codes);
+  var code = issueCode(rec, LGUS, cdate, enumr, codes.map(function (c) { return c.replace(/^P-/, ""); }));
   m.code = code; m.enumerator = enumr; m.collector = collector; m.cdate = cdate; m.collectedBE = +cdate.slice(0, 4) + 543;
   var errs = checkCode(code, LGUS, rec);
   if (errs.length) throw new Error(errs.join(" · "));
+  if (pilot) { code = "P-" + code; m.code = code; m.phase = "pilot"; }
 
   var others = [];
   data.slice(1).forEach(function (r) { try { var j = JSON.parse(r[ji]); if (j.answers && j.answers["1"] === rec.answers["1"]) others.push({ code: String(r[ci]), answers: j.answers }); } catch (x) {} });
@@ -115,7 +122,7 @@ function saveRecord_(rec, enumr, collector, cdate) {
   if (header.length > data[0].length) R.getRange(1, 1, 1, header.length).setValues([header]).setFontWeight("bold");
   R.appendRow(row);
 
-  var C = sheet_(SHEETS.conjoint, ["code"]);
+  var C = sheet_(SH.conjoint, ["code"]);
   (rec.conjoint || []).forEach(function (t) {
     var side = t.chosen === "L" ? t.left : t.chosen === "R" ? t.right : null;
     C.appendRow([code, isTest ? 1 : 0, t.task, t.pair, t.item || "", t.chosen || "", side ? side.name : "", t.left ? t.left.name : "", t.right ? t.right.name : "",
@@ -151,7 +158,7 @@ function apiProgress_(b) {
     var cell = quotaCell(m[1] === "Z" ? "Z" : "O", si >= 0 ? +r[si] : 0);
     a[cell >= 0 ? cell : 4]++;
   });
-  return { real: real, test: test, accept: props_().getProperty("ACCEPT") === "1", at: new Date().toISOString() };
+  return { real: real, test: test, accept: phase_() === "live", phase: phase_(), at: new Date().toISOString() };
 }
 
 /* ---------------- team calendar: who is free on which day (any signed-in account) ----------------
@@ -195,6 +202,20 @@ function apiSetDay_(b) {
   return apiCalendar_(b);
 }
 
+/* ---------------- phase switch (admin only): typed on the survey page as pilot / begin / test ----------------
+   Pilot and main collection start only after EC approval, so the approval number is required and written to the log. */
+function apiSetPhase_(b) {
+  var u = auth_(b.token, "admin"), to = String(b.phase || ""), ec = String(b.ec || "").trim().slice(0, 60);
+  if (["test", "pilot", "live"].indexOf(to) < 0) throw new Error("ไม่รู้จักโหมดนี้");
+  if (to !== "test" && ec.length < 3) throw new Error("ใส่เลขที่หนังสือรับรองจริยธรรม (EC) ก่อนเปิดเก็บข้อมูล");
+  var p = props_(), from = phase_();
+  p.setProperty("PHASE", to); p.setProperty("ACCEPT", to === "live" ? "1" : "0");
+  if (to !== "test") p.setProperty("EC_NO", ec);
+  p.setProperty("PHASE_AT", new Date().toISOString());
+  log_(u.username, "เปลี่ยนโหมด " + from + " → " + to + (ec ? " · EC " + ec : ""));
+  return { phase: to, from: from, ec: p.getProperty("EC_NO") || "" };
+}
+
 /* ---------------- data (admin only) ---------------- */
 function apiData_(b) {
   var me = auth_(b.token, "admin");
@@ -208,7 +229,7 @@ function apiData_(b) {
       mode: g("mode"), P: g("P"), I: g("I"), C: g("C"), phase2: +g("q63") === 1 || +g("q75") === 1 };
   });
   var K = sheet_(SHEETS.contacts, CONTACT_HEADER).getLastRow() - 1;
-  return { rows: rows, lgus: LGUS, district: DISTRICT_TARGET, contacts: Math.max(0, K), accept: props_().getProperty("ACCEPT") === "1",
+  return { rows: rows, lgus: LGUS, district: DISTRICT_TARGET, contacts: Math.max(0, K), accept: phase_() === "live", phase: phase_(), ec: props_().getProperty("EC_NO") || "",
     deleteBy: props_().getProperty("DELETE_BY") || "", sheetUrl: book_().getUrl(), me: publicUser_(me) };
 }
 function apiDetail_(b) {

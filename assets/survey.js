@@ -6,7 +6,11 @@
   "use strict";
   const CONFIG = window.SURVEY_CONFIG || { live: false, endpoint: "" };
   const DEMO = !CONFIG.live;                 // demo: nothing leaves the browser
-  const TESTRUN = !!CONFIG.test;             // live + test: records are saved but marked test = 1
+  /* Collection phase, set on the server by an admin (codes pilot / begin / test typed on this page) and read when the page opens:
+     test  → records saved but marked test = 1 · pilot → field pilot (Stage 1.2), kept in separate sheets · live → main survey */
+  let PHASE = (() => { try { const v = JSON.parse(localStorage.getItem("bfm.phase")); if (["test", "pilot", "live"].includes(v)) return v; } catch (e) {} return CONFIG.test ? "test" : "live"; })();
+  const isTestRun = () => PHASE === "test", isPilot = () => PHASE === "pilot";
+  const PH_LABEL = { test: "โหมดทดสอบระบบ", pilot: "โหมดนำร่อง (ขั้น 1.2 · อ.ชุมพลบุรี)", live: "เก็บข้อมูลจริง (ขั้น 1.3)" };
   const store = {
     get(k, d) { try { const v = localStorage.getItem("bfm." + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem("bfm." + k, JSON.stringify(v)); } catch (e) {} },
@@ -147,6 +151,10 @@
       }
       case "residence": {
         const d = st.ans["3"] || {};
+        if (isPilot()) return `<div class="opts row"><label class="opt"><input type="radio" name="res_a" value="ชุมพลบุรี" ${d.a === "ชุมพลบุรี" ? "checked" : ""}><span class="box" aria-hidden="true"></span><span class="ot">อ.ชุมพลบุรี จ.สุรินทร์</span></label></div>
+          <p class="small muted">ช่วงนำร่อง: ผู้ตอบทุกคนต้องมีชื่อในทะเบียนบ้านและอาศัยใน อ.ชุมพลบุรี</p>
+          <div class="grid2"><label class="fld"><span>ตำบล</span><input class="txt" name="res_t" value="${esc(d.t || "")}" ${d.a ? "" : "disabled"}></label>
+            <label class="fld"><span>หมู่ที่หรือชื่อชุมชน <em>(ไม่บังคับ)</em></span><input class="txt" name="res_m" value="${esc(d.m || "")}"></label></div>`;
         const ds = ["เมืองบุรีรัมย์", "สตึก", "บ้านด่าน", "แคนดง"];
         const tb = d.a ? S.tambons.filter(t => t.a === d.a) : [];
         return `<div class="opts row">${ds.map((x, k) => `<label class="opt"><input type="radio" name="res_a" value="${x}" ${d.a === x ? "checked" : ""}><span class="box" aria-hidden="true"></span><span class="ot">อ.${x}</span></label>`).join("")}</div>
@@ -160,6 +168,7 @@
         let L = S.lgus.filter(l => l.d === d.a && (!d.t || l.t.includes(d.t)));
         if (!d.a) return `<p class="muted small">เลือกอำเภอและตำบลในข้อ 3 ก่อน</p>`;
         const v = st.ans["4"];
+        if (isPilot()) return `<div class="opts">${[["pilot:tb", "เทศบาล (เทศบาลตำบลหรือเทศบาลเมือง)"], ["pilot:ao", "องค์การบริหารส่วนตำบล (อบต.)"], ["unsure", "ไม่แน่ใจ"]].map(([c, t]) => `<label class="opt"><input type="radio" name="q_4" value="${c}" ${v === c ? "checked" : ""}><span class="box" aria-hidden="true"></span><span class="ot">${t}</span></label>`).join("")}</div>`;
         const kind = { nk: "เทศบาลนคร", mg: "เทศบาลเมือง", tb: "เทศบาลตำบล", ao: "อบต." };
         const nm = n => n.replace(/^ทน\.|^ทม\.|^ทต\.|^อบต\./, "");
         return `<div class="opts">${L.map(l => `<label class="opt"><input type="radio" name="q_4" value="${l.n}" ${v === l.n ? "checked" : ""}><span class="box" aria-hidden="true"></span><span class="ot">${kind[l.k]}${nm(l.n)}</span></label>`).join("")}
@@ -246,6 +255,7 @@
         <div><b>ข้อมูลของท่าน</b><p>ใช้วิเคราะห์ในภาพรวมเท่านั้น ไม่นำเสนอรายบุคคลหรือรายหมู่บ้าน</p></div>
       </div>
       ${DEMO ? `<div class="notice"><b>โหมดตัวอย่าง:</b> หน้านี้ใช้ดูและทดลองแบบสอบถามเท่านั้น ระบบไม่ส่งหรือบันทึกคำตอบใด ๆ การเก็บข้อมูลจริงจะเปิดหลังคณะกรรมการจริยธรรมการวิจัยในมนุษย์ (EC) อนุมัติ</div>` : ""}
+      ${!DEMO ? `<div class="notice ${isPilot() ? "acc" : isTestRun() ? "" : "ok"}" id="phasebox">${phaseNote()}</div>` : ""}
       ${INV ? `<div class="notice acc" id="invbox">กำลังตรวจ QR…</div>` : ""}
       <div class="admin" ${INV ? `style="display:none"` : ""}>
         <fieldset class="q"><legend class="qh"><span class="qt">วิธีตอบ</span></legend><div class="opts row">
@@ -262,6 +272,9 @@
       </div>
       <p class="consent" id="consent"></p>
       <div class="nav"><span></span><button class="btn primary" id="start">เริ่มตอบ</button></div>
+      ${!DEMO && !INV ? `<form class="phasecode" id="phaseform" autocomplete="off"><label class="fld"><span class="small muted">รหัสเปลี่ยนโหมด <em>(สำหรับผู้วิจัย)</em></span>
+        <span class="inrow"><input class="txt short" id="phasecode" name="phasecode" autocapitalize="off" spellcheck="false" aria-describedby="phasehelp"><button class="btn ghost small" type="submit">ใช้รหัส</button></span></label>
+        <p class="small muted" id="phasehelp">pilot = เปิดเก็บข้อมูลนำร่อง · begin = เปิดเก็บข้อมูลจริง · test = กลับเป็นโหมดทดสอบ ต้องเข้าสู่ระบบด้วยบัญชีผู้ดูแล</p><div id="phaseconfirm"></div></form>` : ""}
     </section>`;
     app.onchange = e => {
       const t = e.target;
@@ -273,6 +286,7 @@
     };
     modeUI(); renderWho();
     if (INV) checkInvite();
+    const pf = $("#phaseform"); if (pf) pf.onsubmit = e => { e.preventDefault(); phaseCode($("#phasecode").value); };
     if (!whoSub) { whoSub = true; Auth.onChange(() => { if (st.screen === "intro") renderWho(); }); }
     $("#start").onclick = () => {
       if (INV) {
@@ -439,7 +453,7 @@
   }
   function navBtns(nextLabel = "ถัดไป") {
     return `<button type="button" class="btn ghost" id="back">← ย้อนกลับ</button>
-      <span class="navr">${DEMO || TESTRUN ? `<button type="button" class="btn ghost small" id="autofill" title="เติมคำตอบสุ่มเพื่อดูขั้นตอนถัดไป">เติมคำตอบสุ่ม</button>` : ""}<button type="button" class="btn primary" id="next">${nextLabel}</button></span>`;
+      <span class="navr">${DEMO || isTestRun() ? `<button type="button" class="btn ghost small" id="autofill" title="เติมคำตอบสุ่มเพื่อดูขั้นตอนถัดไป">เติมคำตอบสุ่ม</button>` : ""}<button type="button" class="btn primary" id="next">${nextLabel}</button></span>`;
   }
 
   function bindForm(items) {
@@ -550,8 +564,8 @@
       if (answered(it) || (it.type === "check" && Array.isArray(st.ans[it.n]))) continue;
       switch (it.type) {
         case "year": st.ans["1"] = 2500 + Math.floor(R() * 50); break;
-        case "residence": { const a = pick(["เมืองบุรีรัมย์", "สตึก", "บ้านด่าน", "แคนดง"]); st.ans["3"] = { a, t: pick(S.tambons.filter(t => t.a === a)).t }; break; }
-        case "lgu": { const d = st.ans["3"] || {}; const L = S.lgus.filter(l => l.d === d.a && (!d.t || l.t.includes(d.t))); st.ans["4"] = L.length ? pick(L).n : "unsure"; break; }
+        case "residence": { if (isPilot()) { st.ans["3"] = { a: "ชุมพลบุรี", t: "ชุมพลบุรี" }; break; } const a = pick(["เมืองบุรีรัมย์", "สตึก", "บ้านด่าน", "แคนดง"]); st.ans["3"] = { a, t: pick(S.tambons.filter(t => t.a === a)).t }; break; }
+        case "lgu": { if (isPilot()) { st.ans["4"] = pick(["pilot:tb", "pilot:ao"]); break; } const d = st.ans["3"] || {}; const L = S.lgus.filter(l => l.d === d.a && (!d.t || l.t.includes(d.t))); st.ans["4"] = L.length ? pick(L).n : "unsure"; break; }
         case "num": st.ans[it.n] = 1 + Math.floor(R() * 6); break;
         case "income": if (R() < .7) st.ans["12"] = 3000 + Math.floor(R() * 40) * 1000; else st.ans["12b"] = 1 + Math.floor(R() * 9); break;
         case "conf": st.ans[it.n] = Math.floor(R() * 101); break;
@@ -776,7 +790,7 @@
   function record() {
     const sc = scores();
     return {
-      meta: { id: st.meta.id, code: null, test: DEMO || TESTRUN, enumerator: st.meta.enumerator, collector: st.meta.mode === 0 || st.meta.mode === 1 ? st.meta.collector : "", cdate: st.meta.cdate, collectedBE: beYear(st.meta.cdate || todayISO()), started: st.meta.started, finished: new Date().toISOString(), seconds: Math.round((performance.now() - (st.t0 || 0)) / 1000), mode: st.meta.mode, venue: st.meta.venue, design: st.meta.design, version: st.meta.version, order: st.meta.order, gsize: st.meta.mode === 3 ? "" : st.meta.group.size, gcode: st.meta.group.size > 1 ? st.meta.group.code : "", instrument: "v1.9" },
+      meta: { id: st.meta.id, code: null, test: DEMO || isTestRun(), phase: !DEMO && isPilot() ? "pilot" : undefined, enumerator: st.meta.enumerator, collector: st.meta.mode === 0 || st.meta.mode === 1 ? st.meta.collector : "", cdate: st.meta.cdate, collectedBE: beYear(st.meta.cdate || todayISO()), started: st.meta.started, finished: new Date().toISOString(), seconds: Math.round((performance.now() - (st.t0 || 0)) / 1000), mode: st.meta.mode, venue: st.meta.venue, design: st.meta.design, version: st.meta.version, order: st.meta.order, gsize: st.meta.mode === 3 ? "" : st.meta.group.size, gcode: st.meta.group.size > 1 ? st.meta.group.code : "", instrument: "v1.9" },
       answers: { ...st.ans }, text: { ...st.txt },
       conjoint: (st.cj.tasks || []).map((t, i) => ({ task: i + 1, pair: t.k, item: t.n, chosen: t.choice, ms: t.at, left: strip(t.L, t.design), right: strip(t.Rt, t.design) })),
       ipc: { I: sc.I, P: sc.P, C: sc.C, complete: sc.complete },
@@ -840,7 +854,7 @@
     const el = $("#chips"); if (!el) return;
     const n = outbox().length;
     el.innerHTML = (DEMO ? `<span class="chip warn"><i></i>โหมดตัวอย่าง · ไม่บันทึกคำตอบ</span><span class="chip">รอ EC อนุมัติก่อนเปิดเก็บจริง</span>`
-      : TESTRUN ? `<span class="chip warn"><i></i>โหมดทดสอบระบบ · บันทึกเป็นข้อมูลทดสอบ</span>` : `<span class="chip mint"><i></i>เก็บข้อมูลจริง</span>`) +
+      : isTestRun() ? `<span class="chip warn"><i></i>โหมดทดสอบระบบ · บันทึกเป็นข้อมูลทดสอบ</span>` : isPilot() ? `<span class="chip acc"><i></i>โหมดนำร่อง · เก็บแยกจากข้อมูลจริง</span>` : `<span class="chip mint"><i></i>เก็บข้อมูลจริง</span>`) +
       (n ? `<span class="chip warn">รอส่ง ${n} ชุด</span>` : "") +
       (INV ? `<span class="chip acc">ตอบผ่าน QR ของผู้เก็บข้อมูล${invInfo ? " เลข " + invInfo.enumerator : ""}</span>` : Auth.get() ? `<span class="chip">เข้าสู่ระบบ: ${esc(Auth.get().user.username)}</span>` : "");
   }
@@ -873,6 +887,43 @@
   }
 
   let toastT;
+  /* ---------- phase: read from the server; changed by an admin with a code ---------- */
+  function phaseNote() {
+    if (isPilot()) return `<b>${PH_LABEL.pilot}</b><br><span class="small">เก็บเฉพาะผู้ที่อาศัยและมีชื่อในทะเบียนบ้าน อ.ชุมพลบุรี จ.สุรินทร์ คำตอบแยกไว้ในชีตนำร่อง ไม่นำไปทดสอบสมมติฐาน และไม่ขอเบอร์โทรสำหรับระยะที่ 2 รหัสผู้ตอบขึ้นต้นด้วย P-</span>`;
+    if (isTestRun()) return `<b>${PH_LABEL.test}</b><br><span class="small">ทุกชุดบันทึกเป็นข้อมูลทดสอบ ไม่นับเป็นข้อมูลวิจัย</span>`;
+    return `<b>${PH_LABEL.live}</b><br><span class="small">คำตอบนับเป็นข้อมูลวิจัย</span>`;
+  }
+  async function readPhase() {
+    if (DEMO || !CONFIG.endpoint) return;
+    try {
+      const j = await fetch(CONFIG.endpoint, { cache: "no-store" }).then(r => r.json());
+      if (j && ["test", "pilot", "live"].includes(j.phase) && j.phase !== PHASE) { PHASE = j.phase; store.set("phase", PHASE); if (st.screen === "intro" || st.screen === "part") render(); }
+      else if (j && j.phase) store.set("phase", j.phase);
+    } catch (e) { /* offline: keep the last phase seen on this device */ }
+  }
+  function phaseCode(raw) {
+    const box = $("#phaseconfirm"), code = String(raw || "").trim().toLowerCase();
+    const to = { pilot: "pilot", begin: "live", test: "test" }[code];
+    if (!to) { box.innerHTML = `<p class="small err" role="alert">รหัสไม่ถูกต้อง</p>`; return; }
+    const se = Auth.get();
+    if (!se || se.demo || se.user.role !== "admin") { box.innerHTML = `<p class="small err" role="alert">ต้องเข้าสู่ระบบด้วยบัญชีผู้ดูแล (admin) ก่อนจึงจะเปลี่ยนโหมดได้</p>`; return; }
+    if (to === PHASE) { box.innerHTML = `<p class="small">ตอนนี้อยู่ใน${PH_LABEL[to]}อยู่แล้ว</p>`; return; }
+    const what = { pilot: "เปิดเก็บข้อมูล<b>นำร่อง</b> (ขั้น 1.2 ที่ อ.ชุมพลบุรี 10–12 คน) คำตอบจะเก็บแยกในชีต “คำตอบ (นำร่อง)”", live: "เปิดเก็บข้อมูล<b>จริง</b> (ขั้น 1.3) คำตอบจะนับเป็นข้อมูลวิจัย และหยุดรับคำตอบนำร่อง", test: "กลับเป็น<b>โหมดทดสอบ</b> คำตอบจะบันทึกเป็นข้อมูลทดสอบ" }[to];
+    box.innerHTML = `<div class="notice warn" style="margin-top:8px"><p>${what}</p>
+      ${to !== "test" ? `<label class="fld"><span>เลขที่หนังสือรับรองจริยธรรม (EC) <em>(ต้องได้รับอนุมัติก่อนเก็บข้อมูลจากคนจริง)</em></span><input class="txt" id="ecno" placeholder="เช่น HE69xxxx"></label>` : ""}
+      <div class="row" style="margin-top:8px;display:flex;gap:8px"><button class="btn primary small" type="button" id="phgo">ยืนยัน</button><button class="btn ghost small" type="button" id="phno">ยกเลิก</button></div></div>`;
+    $("#phno").onclick = () => { box.innerHTML = ""; };
+    $("#phgo").onclick = async () => {
+      const ec = to !== "test" ? $("#ecno").value.trim() : "";
+      if (to !== "test" && ec.length < 3) { toast("ใส่เลขที่หนังสือรับรอง EC ก่อน"); $("#ecno").focus(); return; }
+      $("#phgo").disabled = true;
+      const j = await Auth.api("setPhase", { phase: to, ec });
+      if (!j.ok) { $("#phgo").disabled = false; toast(j.error || "เปลี่ยนโหมดไม่สำเร็จ"); return; }
+      PHASE = j.phase; store.set("phase", PHASE); delete st.ans["3"]; delete st.ans["4"];
+      toast(`เปลี่ยนเป็น${PH_LABEL[PHASE]}แล้ว`); render();
+    };
+  }
+
   function toast(msg) {
     let t = $("#toast"); if (!t) { t = document.createElement("div"); t.id = "toast"; t.setAttribute("role", "status"); document.body.appendChild(t); }
     t.textContent = msg; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 3800);
@@ -880,9 +931,10 @@
 
   window.__survey = { st, scores, record, makeCode };     // for testing
   chips();
+  readPhase();
   if (!DEMO && CONFIG.endpoint && outbox().length) flush();
   window.addEventListener("online", () => { if (!DEMO && outbox().length) flush(); });
-  const jump = (DEMO || TESTRUN) && location.hash.match(/^#p([1-7])$/);
+  const jump = (DEMO || isTestRun()) && location.hash.match(/^#p([1-7])$/);
   if (jump) { st.meta.mode = 1; st.meta.venue = 1; st.meta.enumerator = 1; st.meta.started = new Date().toISOString(); st.t0 = performance.now(); st.screen = "part"; st.part = +jump[1] - 1; if (st.part === 3) st.cj.stage = "intro"; }
   render();
 })();

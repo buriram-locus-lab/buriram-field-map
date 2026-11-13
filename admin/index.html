@@ -186,7 +186,7 @@ dialog pre{font-family:var(--f-mono);font-size:.76rem;background:var(--sunk);bor
   function rows() { return D.rows.filter(function (r) { return $("#showTest").checked || !r.test; }).map(function (r) { r.p = parse(r.code); return r; }).filter(function (r) { return r.p; }); }
   function renderAdmin() {
     root.innerHTML = headBar("หลังบ้านแบบสอบถาม", "Econ Socio-Lab · ข้อมูลจาก Google Sheet ของผู้วิจัย") +
-      '<div class="tools"><span class="chip ' + (D.accept ? "mint" : "warn") + '"><i></i>' + (D.accept ? "เปิดรับข้อมูลจริงแล้ว" : "ยังไม่เปิดรับข้อมูลจริง (รับเฉพาะข้อมูลทดสอบ)") + '</span>' +
+      '<div class="tools"><span class="chip ' + (D.accept ? "mint" : "warn") + '"><i></i>' + (D.phase === "pilot" ? "โหมดนำร่อง · คำตอบอยู่ในชีต “คำตอบ (นำร่อง)”" : D.accept ? "เปิดรับข้อมูลจริงแล้ว" : "ยังไม่เปิดรับข้อมูลจริง (รับเฉพาะข้อมูลทดสอบ)") + (D.ec ? " · EC " + esc(D.ec) : "") + '</span>' +
       '<label class="chip"><input type="checkbox" id="showTest"' + (D.accept ? "" : " checked") + '> แสดงข้อมูลทดสอบ</label>' +
       '<label class="chip">เป้า <select id="tier" style="border:0;background:none;font:inherit;color:inherit;min-height:0;padding:0"><option value="300">300</option><option value="440" selected>440</option><option value="880">880</option></select></label>' +
       '<button class="btn sm" id="reload">รีเฟรช</button></div>' +
@@ -277,7 +277,7 @@ dialog pre{font-family:var(--f-mono);font-size:.76rem;background:var(--sunk);bor
   function renderSettings() {
     $("#ps").innerHTML = '<div class="card" style="display:grid;gap:8px"><h3>ข้อมูลทดสอบ</h3><p class="small muted">ใช้ทดสอบระบบก่อน EC อนุมัติ ทุกแถวมีค่า test = 1 และลบออกได้ทั้งหมด</p><div class="tools"><button class="btn" id="seed">สร้างข้อมูลทดสอบ 30 ชุด</button><button class="btn" id="clr">ลบข้อมูลทดสอบทั้งหมด</button></div></div>' +
       '<div class="danger-zone"><h3>ลบเบอร์ติดต่อทั้งหมด</h3><p class="small">ทำเมื่อสัมภาษณ์รอบ 2 เสร็จ ตามที่แจ้งคณะกรรมการจริยธรรมฯ' + (D.deleteBy ? ' (กำหนดภายใน ' + esc(D.deleteBy) + ')' : '') + ' ลบแล้วกู้คืนไม่ได้ พิมพ์ <b>ลบเบอร์ทั้งหมด</b> เพื่อยืนยัน</p><div class="tools"><input id="cf" placeholder="ลบเบอร์ทั้งหมด" aria-label="ข้อความยืนยัน"><button class="btn" id="del" disabled style="color:var(--bad)">ลบเบอร์ ' + D.contacts + ' รายการ</button></div></div>' +
-      '<p class="small muted">การเปิดรับข้อมูลจริง: เจ้าของสคริปต์ตั้งค่า ACCEPT = 1 ใน Script properties หลัง EC อนุมัติ</p>';
+      '<p class="small muted">เปลี่ยนโหมด: เข้าสู่ระบบด้วยบัญชีผู้ดูแล แล้วพิมพ์รหัสในช่อง “รหัสเปลี่ยนโหมด” ท้ายหน้าแบบสอบถาม · pilot = นำร่อง · begin = เก็บจริง · test = ทดสอบ (pilot และ begin ต้องใส่เลขที่หนังสือรับรอง EC)</p>';
     $("#seed").onclick = function () { msg("กำลังสร้างข้อมูลทดสอบ…"); api("seedTest", { n: 30 }).then(function (j) { if (!j.ok) return fail(j); msg("สร้างแล้ว " + j.made + " ชุด"); loadAdmin(); }); };
     $("#clr").onclick = function () { msg("กำลังลบข้อมูลทดสอบ…"); api("clearTest").then(function (j) { if (!j.ok) return fail(j); msg("ลบแล้ว " + j.deleted + " ชุด"); loadAdmin(); }); };
     $("#cf").oninput = function () { $("#del").disabled = $("#cf").value !== "ลบเบอร์ทั้งหมด"; };
