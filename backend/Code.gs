@@ -68,7 +68,7 @@ function doPost(e) {
   } finally { try { lock.releaseLock(); } catch (x) {} }
 }
 /** Opening the web app URL in a browser shows nothing but a status line: the data is reached only through the website after signing in. */
-function doGet() { var ph = phase_(); return out_({ ok: true, service: "buriram-survey", accept: ph === "live", phase: ph }); }
+function doGet() { var ph = phase_(); return out_({ ok: true, service: "buriram-survey", accept: ph === "live", phase: ph, noEc: ph === "pilot" && props_().getProperty("PILOT_NOEC") ? "1" : "" }); }
 
 /* ---------------- collection ---------------- */
 function validDate_(iso) {
@@ -122,6 +122,7 @@ function saveRecord_(rec, enumr, collector, cdate, pilot) {
   var contact = rec.contact; delete rec.contact;            // phone numbers never enter the responses sheet
   var flat = flattenRecord(rec);
   flat.received = new Date(); flat.flag = dupOf ? "อาจซ้ำกับ " + dupOf : "";
+  if (pilot && props_().getProperty("PILOT_NOEC")) flat.flag = (flat.flag ? flat.flag + " · " : "") + "ก่อน EC";
   flat.json = JSON.stringify({ answers: rec.answers, text: rec.text, ipc: rec.ipc });
   var row = rowForHeader(header, flat);
   if (header.length > data[0].length) R.getRange(1, 1, 1, header.length).setValues([header]).setFontWeight("bold");
@@ -212,33 +213,49 @@ function apiSetDay_(b) {
 function apiSetPhase_(b) {
   var u = auth_(b.token, "admin"), to = String(b.phase || ""), ec = String(b.ec || "").trim().slice(0, 60);
   if (["test", "pilot", "live"].indexOf(to) < 0) throw new Error("ไม่รู้จักโหมดนี้");
-  if (to !== "test" && ec.length < 3) throw new Error("ใส่เลขที่หนังสือรับรองจริยธรรม (EC) ก่อนเปิดเก็บข้อมูล");
+  /* A pilot may open before EC approval only as instrument testing the advisor approved (b.noEc + b.note). It is logged, every pilot
+     record is flagged "ก่อน EC", and those answers cannot be published. Live always needs an EC certificate number. */
+  var noEc = to === "pilot" && !!b.noEc, note = String(b.note || "").trim().slice(0, 120);
+  if (noEc && note.length < 3) throw new Error("ระบุว่าใครอนุมัติให้ทดลองเครื่องมือก่อนได้ EC (เช่น ชื่ออาจารย์ที่ปรึกษาและวันที่)");
+  if (to !== "test" && !noEc && ec.length < 3) throw new Error("ใส่เลขที่หนังสือรับรองจริยธรรม (EC) ก่อนเปิดเก็บข้อมูล");
   var p = props_(), from = phase_();
   p.setProperty("PHASE", to); p.setProperty("ACCEPT", to === "live" ? "1" : "0");
-  if (to !== "test") p.setProperty("EC_NO", ec);
+  if (to !== "test" && !noEc) p.setProperty("EC_NO", ec);
+  if (to === "pilot") p.setProperty("PILOT_NOEC", noEc ? note : ""); else if (to === "live") p.setProperty("PILOT_NOEC", "");
   p.setProperty("PHASE_AT", new Date().toISOString());
-  log_(u.username, "เปลี่ยนโหมด " + from + " → " + to + (ec ? " · EC " + ec : ""));
-  return { phase: to, from: from, ec: p.getProperty("EC_NO") || "" };
+  log_(u.username, "เปลี่ยนโหมด " + from + " → " + to + (noEc ? " · ยังไม่มี EC: ทดลองเครื่องมือ (" + note + ") ข้อมูลใช้ตีพิมพ์ไม่ได้" : ec ? " · EC " + ec : ""));
+  return { phase: to, from: from, ec: noEc ? "" : (p.getProperty("EC_NO") || ""), noEc: p.getProperty("PILOT_NOEC") || "" };
 }
 
 /* ---------------- IPC 24-item trial (Levenson, 1981), separate from the main questionnaire ----------------
-   Answered on the collector's device (read aloud or self-completed). Each item −3…+3 without 0; each subscale = sum + 24 (0–48).
+   Its own page (/ipc/), not part of the main questionnaire. Answered on the collector's device: mode 1 read aloud · 2 the respondent
+   reads it on the collector's device · 0 keyed in from a paper form. The 9 short-form items are scored from the same answers for comparison. Each item −3…+3 without 0; each subscale = sum + 24 (0–48).
    Scores are returned to the page only for the test dataset (the researcher trying it); other answers show scores to admins only. */
 var IPC24_SHEET = "IPC 24 ข้อ (ทดลอง)";
 var IPC24_KEY = { I: [1, 4, 5, 9, 18, 19, 21, 23], P: [3, 8, 11, 13, 15, 17, 20, 22], C: [2, 6, 7, 10, 12, 14, 16, 24] };
+/* The 9 items of the short form in the main questionnaire (items 47–55), by Levenson number. Short subscale = sum + 9 (0–18). */
+var IPC9_KEY = { I: [23, 18, 19], P: [11, 3, 13], C: [2, 6, 7] };
 var IPC24_HEADER = ["id", "dataset", "received", "collector", "enumerator", "mode", "main_code", "started", "finished", "seconds"]
   .concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24].map(function (k) { return "L" + k; }))
-  .concat(["I", "P", "C", "lean", "answered"]);
-function ipc24Score_(a) {
+  .concat(["I", "P", "C", "lean", "answered", "s9_I", "s9_P", "s9_C", "s9_lean", "lean_same", "flag"]);
+/* Full form: lean = highest subscale unless the top two are within 3 points ("none").
+   Short form: the same rule scaled to its range (0–18): within 1 point → "none". */
+function ipcSub_(a, key, items, gap) {
   var out = {}, n = 0;
   ["I", "P", "C"].forEach(function (d) {
     var sum = 0, got = 0;
-    IPC24_KEY[d].forEach(function (k) { var v = +a[k]; if ([-3, -2, -1, 1, 2, 3].indexOf(v) >= 0) { sum += v; got++; } });
-    out[d] = got === 8 ? sum + 24 : null; n += got;
+    key[d].forEach(function (k) { var v = +a[k]; if ([-3, -2, -1, 1, 2, 3].indexOf(v) >= 0) { sum += v; got++; } });
+    out[d] = got === items ? sum + 3 * items : null; n += got;
   });
   var have = ["I", "P", "C"].filter(function (d) { return out[d] !== null; }).sort(function (x, y) { return out[y] - out[x]; });
-  out.lean = have.length === 3 ? (out[have[0]] - out[have[1]] <= 3 ? "none" : have[0]) : "";
+  out.lean = have.length === 3 ? (out[have[0]] - out[have[1]] <= gap ? "none" : have[0]) : "";
   out.answered = n;
+  return out;
+}
+function ipc24Score_(a) {
+  var out = ipcSub_(a, IPC24_KEY, 8, 3), s = ipcSub_(a, IPC9_KEY, 3, 1);
+  out.short = { I: s.I, P: s.P, C: s.C, lean: s.lean };
+  out.same = out.lean && s.lean ? (out.lean === s.lean ? 1 : 0) : "";
   return out;
 }
 function apiSubmitIpc_(b) {
@@ -247,11 +264,13 @@ function apiSubmitIpc_(b) {
   if (set !== "test" && set !== ph) throw new Error("ชุดข้อมูล “" + set + "” ยังไม่เปิด ผู้ดูแลต้องเปิดด้วยรหัสก่อน");
   if (!m.id || String(m.id).length < 6) throw new Error("คำตอบไม่มีเลขอ้างอิง");
   var sh = sheet_(IPC24_SHEET, IPC24_HEADER), v = sh.getDataRange().getValues();
+  if (v[0].length < IPC24_HEADER.length) sh.getRange(1, 1, 1, IPC24_HEADER.length).setValues([IPC24_HEADER]).setFontWeight("bold");   // sheet made by v2.0
   for (var i = 1; i < v.length; i++) if (String(v[i][0]) === String(m.id)) return { id: m.id, dataset: set, dup: true, scores: set === "test" ? ipc24Score_(a) : null };
   var sc = ipc24Score_(a), secs = m.started && m.finished ? Math.round((new Date(m.finished) - new Date(m.started)) / 1000) : "";
-  var row = [String(m.id), set, new Date(), u.username, u.enumerator || "", +m.mode === 0 ? 0 : 1, String(m.mainCode || "").slice(0, 20), m.started || "", m.finished || "", secs];
+  var row = [String(m.id), set, new Date(), u.username, u.enumerator || "", [0, 1, 2].indexOf(+m.mode) >= 0 ? +m.mode : 1, String(m.mainCode || "").slice(0, 20), m.started || "", m.finished || "", secs];
   for (var k = 1; k <= 24; k++) { var x = +a[k]; row.push([-3, -2, -1, 1, 2, 3].indexOf(x) >= 0 ? x : ""); }
-  row = row.concat([sc.I, sc.P, sc.C, sc.lean, sc.answered]);
+  var flag = set === "pilot" && props_().getProperty("PILOT_NOEC") ? "ก่อน EC" : "";
+  row = row.concat([sc.I, sc.P, sc.C, sc.lean, sc.answered, sc.short.I, sc.short.P, sc.short.C, sc.short.lean, sc.same, flag]);
   sh.appendRow(row);
   log_(u.username, "IPC 24 ข้อ ชุด " + set + " " + m.id);
   return { id: m.id, dataset: set, scores: set === "test" ? sc : null };
@@ -263,7 +282,9 @@ function apiIpcList_(b) {
   var col = function (n) { return h.indexOf(n); };
   var rows = v.slice(1).reverse().slice(0, 200).map(function (r) {
     return { id: r[col("id")], set: r[col("dataset")], at: r[col("received")] instanceof Date ? r[col("received")].toISOString() : String(r[col("received")]), by: r[col("collector")],
-      main: r[col("main_code")], I: r[col("I")], P: r[col("P")], C: r[col("C")], lean: r[col("lean")], n: r[col("answered")] };
+      main: r[col("main_code")], I: r[col("I")], P: r[col("P")], C: r[col("C")], lean: r[col("lean")], n: r[col("answered")],
+      sI: col("s9_I") >= 0 ? r[col("s9_I")] : "", sP: col("s9_P") >= 0 ? r[col("s9_P")] : "", sC: col("s9_C") >= 0 ? r[col("s9_C")] : "",
+      slean: col("s9_lean") >= 0 ? r[col("s9_lean")] : "", flag: col("flag") >= 0 ? r[col("flag")] : "" };
   });
   return { rows: rows, total: v.length - 1 };
 }
@@ -281,7 +302,7 @@ function apiData_(b) {
       mode: g("mode"), P: g("P"), I: g("I"), C: g("C"), phase2: +g("q63") === 1 || +g("q75") === 1 };
   });
   var K = sheet_(SHEETS.contacts, CONTACT_HEADER).getLastRow() - 1;
-  return { rows: rows, lgus: LGUS, district: DISTRICT_TARGET, contacts: Math.max(0, K), accept: phase_() === "live", phase: phase_(), ec: props_().getProperty("EC_NO") || "",
+  return { rows: rows, lgus: LGUS, district: DISTRICT_TARGET, contacts: Math.max(0, K), accept: phase_() === "live", phase: phase_(), ec: props_().getProperty("EC_NO") || "", noEc: phase_() === "pilot" ? (props_().getProperty("PILOT_NOEC") || "") : "",
     deleteBy: props_().getProperty("DELETE_BY") || "", sheetUrl: book_().getUrl(), me: publicUser_(me) };
 }
 function apiDetail_(b) {

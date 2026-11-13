@@ -81,7 +81,7 @@
   }
 
   /* the "เข้าสู่ระบบ" item in the site menu: signed out → the sign-in page; signed in → the person's chip, which opens a small menu
-     (team calendar, field map, own account, sign out). The menu is placed on <body> because the nav list scrolls sideways and would clip it. */
+     (team calendar, IPC 24-item trial, field map, own account, sign out). The menu is placed on <body> because the nav list scrolls sideways and would clip it. */
   let menu = null, menuFor = null;
   function closeMenu(focusBack) {
     if (!menu) return;
@@ -96,6 +96,7 @@
     const base = a.getAttribute("href").replace(/admin\/?$/, ""), here = location.pathname;
     const items = [
       ["calendar/", "ปฏิทินทีม", "วันว่างของทีม"],
+      ["ipc/", "แบบทดลอง IPC 24 ข้อ", "แบบสอบถามแยก เทียบฉบับเต็มกับฉบับตัด"],
       ["field/", "แผนที่ภาคสนาม", "เป้า ตำแหน่ง และจำนวนที่เก็บแล้ว"],
       ["admin/", "บัญชีของฉัน", s.user.role === "admin" ? "หลังบ้านและข้อมูล" : "รหัสผู้ตอบที่ส่งแล้ว"],
     ];
