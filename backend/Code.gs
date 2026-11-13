@@ -256,14 +256,15 @@ function apiDeleteContacts_(b) {
 /** Data set as CSV. Phone numbers are never part of it. which = "responses" | "conjoint"; test rows only when asked. */
 function apiExport_(b) {
   var me = auth_(b.token, "admin");
-  var which = b.which === "conjoint" ? SHEETS.conjoint : SHEETS.responses;
+  var W = { responses: SHEETS.responses, conjoint: SHEETS.conjoint, pilot: PILOT_SHEETS.responses, pilot_conjoint: PILOT_SHEETS.conjoint }, which = W[b.which] || SHEETS.responses;
   var v = sheet_(which, ["code"]).getDataRange().getValues(), h = v[0].map(String), ti = h.indexOf("test"), ji = h.indexOf("json");
   var keep = h.map(function (_, i) { return i !== ji; });
   var cell = function (x) { if (x instanceof Date) x = Utilities.formatDate(x, TZ, "yyyy-MM-dd HH:mm:ss"); x = x === null || x === undefined ? "" : String(x); return /[",\n\r]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
   var rows = v.filter(function (r, i) { return i === 0 || b.includeTest || +r[ti] !== 1; });
+  var testRows = v.slice(1).filter(function (r) { return +r[ti] === 1; }).length;
   var csv = rows.map(function (r) { return r.filter(function (_, i) { return keep[i]; }).map(cell).join(","); }).join("\r\n");
   log_(me.username, "ดาวน์โหลดชุดข้อมูล " + which + " " + (rows.length - 1) + " แถว");
-  return { csv: "﻿" + csv, rows: rows.length - 1, name: (b.which === "conjoint" ? "conjoint" : "responses") + "_" + Utilities.formatDate(new Date(), TZ, "yyyyMMdd-HHmm") + ".csv" };
+  return { csv: "﻿" + csv, rows: rows.length - 1, testRows: testRows, name: (W[b.which] ? b.which : "responses") + "_" + Utilities.formatDate(new Date(), TZ, "yyyyMMdd-HHmm") + ".csv" };
 }
 
 /** Fake records for testing the pipeline before EC approval. They carry test = 1. */

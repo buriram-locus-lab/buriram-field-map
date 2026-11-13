@@ -267,12 +267,16 @@ dialog pre{font-family:var(--f-mono);font-size:.76rem;background:var(--sunk);bor
   }
   function renderExport() {
     $("#px").innerHTML = '<div class="card" style="display:grid;gap:12px"><h3>ดาวน์โหลดชุดข้อมูล</h3><p class="small muted">ไฟล์ CSV (UTF-8 เปิดด้วย Excel, Stata, R ได้) หนึ่งแถวต่อผู้ตอบ ใช้รหัสผู้ตอบเป็นตัวระบุ ไม่มีชื่อ ไม่มีเบอร์โทร ทุกครั้งที่ดาวน์โหลดถูกบันทึกในชีต “บันทึกระบบ”</p>' +
-      '<label class="small"><input type="checkbox" id="xt"> รวมข้อมูลทดสอบ</label><div class="tools"><button class="btn primary" data-w="responses">คำตอบทั้งหมด (responses.csv)</button><button class="btn" data-w="conjoint">การเลือกคู่ผู้สมัคร (conjoint.csv)</button></div>' +
+      '<label class="small"><input type="checkbox" id="xt"' + (D && D.phase !== "live" ? " checked" : "") + '> รวมข้อมูลทดสอบ <span class="muted">(ยังไม่เปิดเก็บจริง ข้อมูลทั้งหมดตอนนี้เป็นข้อมูลทดสอบ ต้องติ๊กช่องนี้ไฟล์จึงจะมีข้อมูล)</span></label><div class="tools"><button class="btn primary" data-w="responses">คำตอบทั้งหมด (responses.csv)</button><button class="btn" data-w="conjoint">การเลือกคู่ผู้สมัคร (conjoint.csv)</button></div>' +
+      '<div class="tools"><button class="btn ghost" data-w="pilot">คำตอบนำร่อง (pilot.csv)</button><button class="btn ghost" data-w="pilot_conjoint">คู่ผู้สมัคร นำร่อง (pilot_conjoint.csv)</button></div>' +
       '<p class="small muted">คอลัมน์: code, rid (เลขอ้างอิงฟอร์ม), collector, received, test, flag, started, finished, seconds, mode (0 กระดาษ · 1 อ่านให้ฟัง · 3 QR · 2 ออนไลน์ปิดแล้ว), venue, enumerator, version, order, gsize, gcode, q1 … q64 ตามแบบสอบถามฉบับ 1.8 (q1m เดือนเกิด, q8b อาชีพรอง, q12b ช่วงรายได้, q64a–q64d บันทึกผู้เก็บ), ipc_I, ipc_P, ipc_C (0–18 ต่อด้าน)</p></div>';
     $("#px").onclick = function (e) { var b = e.target.closest("button[data-w]"); if (!b) return;
       if (demo()) return msg("โหมดตัวอย่าง: ดาวน์โหลดได้เมื่อเชื่อมหลังบ้านแล้ว", true);
       b.disabled = true; api("exportCsv", { which: b.dataset.w, includeTest: $("#xt").checked }).then(function (j) { b.disabled = false; if (!j.ok) return fail(j);
-        var a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([j.csv], { type: "text/csv;charset=utf-8" })); a.download = j.name; a.click(); msg("ดาวน์โหลด " + j.rows + " แถว"); }); };
+        var a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([j.csv], { type: "text/csv;charset=utf-8" })); a.download = j.name; a.click();
+        if (!j.rows && j.testRows) msg("ไฟล์มีแต่หัวตาราง เพราะมีแต่ข้อมูลทดสอบ " + j.testRows + " แถว ติ๊ก “รวมข้อมูลทดสอบ” แล้วดาวน์โหลดใหม่", true);
+        else if (!j.rows) msg("ไฟล์มีแต่หัวตาราง ยังไม่มีคำตอบในชีตนี้", true);
+        else msg("ดาวน์โหลด " + j.rows + " แถว"); }); };
   }
   function renderSettings() {
     $("#ps").innerHTML = '<div class="card" style="display:grid;gap:8px"><h3>ข้อมูลทดสอบ</h3><p class="small muted">ใช้ทดสอบระบบก่อน EC อนุมัติ ทุกแถวมีค่า test = 1 และลบออกได้ทั้งหมด</p><div class="tools"><button class="btn" id="seed">สร้างข้อมูลทดสอบ 30 ชุด</button><button class="btn" id="clr">ลบข้อมูลทดสอบทั้งหมด</button></div></div>' +
