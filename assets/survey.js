@@ -9,14 +9,8 @@
   /* Collection phase, set on the server by an admin (codes pilot / begin / test typed on this page) and read when the page opens:
      test  → records saved but marked test = 1 · pilot → field pilot (Stage 1.2), kept in separate sheets · live → main survey */
   let PHASE = (() => { try { const v = JSON.parse(localStorage.getItem("bfm.phase")); if (["test", "pilot", "live"].includes(v)) return v; } catch (e) {} return CONFIG.test ? "test" : "live"; })();
-  /* The dataset of this form (test / pilot / live) is chosen on the first screen. The server phase decides which are open:
-     test always · pilot only while the phase is pilot · live only while the phase is live. A QR form takes its dataset from the QR. */
-  const SETS = { test: "ทดสอบ", pilot: "นำร่อง", live: "เก็บจริง" };
-  let PILOT_NOEC = (() => { try { return JSON.parse(localStorage.getItem("bfm.pilotNoEc")) || ""; } catch (e) { return ""; } })();
-  const setOpen = k => k === "test" || k === PHASE;
-  const curSet = () => { const k = st && st.meta && st.meta.dataset; return k && SETS[k] ? k : PHASE; };
-  const isTestRun = () => curSet() === "test", isPilot = () => curSet() === "pilot";
-  const PH_LABEL = { test: "โหมดทดสอบระบบ", pilot: "โหมดนำร่อง (ขั้น 1.2)", live: "เก็บข้อมูลจริง (ขั้น 1.3)" };
+  const isTestRun = () => PHASE === "test", isPilot = () => PHASE === "pilot";
+  const PH_LABEL = { test: "โหมดทดสอบระบบ", pilot: "โหมดนำร่อง (ขั้น 1.2 · อ.ชุมพลบุรี)", live: "เก็บข้อมูลจริง (ขั้น 1.3)" };
   const store = {
     get(k, d) { try { const v = localStorage.getItem("bfm." + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem("bfm." + k, JSON.stringify(v)); } catch (e) {} },
@@ -157,16 +151,10 @@
       }
       case "residence": {
         const d = st.ans["3"] || {};
-        if (isPilot()) {        // pilot: any district; one of the four study districts → its respondents must be kept out of the main sample
-          const PA = ["ชุมพลบุรี", "เมืองบุรีรัมย์", "สตึก", "บ้านด่าน", "แคนดง", "other"];
-          const lab = x => x === "other" ? "อำเภออื่น (ระบุ)" : x === "ชุมพลบุรี" ? "อ.ชุมพลบุรี จ.สุรินทร์" : "อ." + x;
-          const study = ["เมืองบุรีรัมย์", "สตึก", "บ้านด่าน", "แคนดง"].includes(d.a);
-          return `<div class="opts row">${PA.map(x => `<label class="opt"><input type="radio" name="res_a" value="${x}" ${d.a === x ? "checked" : ""}><span class="box" aria-hidden="true"></span><span class="ot">${lab(x)}</span></label>`).join("")}</div>
-          ${study ? `<p class="notice warn small">อำเภอนี้อยู่ในพื้นที่ศึกษา ผู้ตอบนำร่องคนนี้ต้องไม่ถูกเลือกเป็นตัวอย่างจริงอีก (ถามคัดกรองว่า “เคยตอบแบบสอบถามนี้มาก่อนไหม” ตอนเก็บจริง)</p>` : ""}
-          <div class="grid2">${d.a === "other" ? `<label class="fld"><span>อำเภอ จังหวัด</span><input class="txt" name="res_o" value="${esc(d.o || "")}" placeholder="เช่น อ.… จ.…"></label>` : ""}
-            <label class="fld"><span>ตำบล</span><input class="txt" name="res_t" value="${esc(d.t || "")}" ${d.a ? "" : "disabled"}></label>
+        if (isPilot()) return `<div class="opts row"><label class="opt"><input type="radio" name="res_a" value="ชุมพลบุรี" ${d.a === "ชุมพลบุรี" ? "checked" : ""}><span class="box" aria-hidden="true"></span><span class="ot">อ.ชุมพลบุรี จ.สุรินทร์</span></label></div>
+          <p class="small muted">ช่วงนำร่อง: ผู้ตอบทุกคนต้องมีชื่อในทะเบียนบ้านและอาศัยใน อ.ชุมพลบุรี</p>
+          <div class="grid2"><label class="fld"><span>ตำบล</span><input class="txt" name="res_t" value="${esc(d.t || "")}" ${d.a ? "" : "disabled"}></label>
             <label class="fld"><span>หมู่ที่หรือชื่อชุมชน <em>(ไม่บังคับ)</em></span><input class="txt" name="res_m" value="${esc(d.m || "")}"></label></div>`;
-        }
         const ds = ["เมืองบุรีรัมย์", "สตึก", "บ้านด่าน", "แคนดง"];
         const tb = d.a ? S.tambons.filter(t => t.a === d.a) : [];
         return `<div class="opts row">${ds.map((x, k) => `<label class="opt"><input type="radio" name="res_a" value="${x}" ${d.a === x ? "checked" : ""}><span class="box" aria-hidden="true"></span><span class="ot">อ.${x}</span></label>`).join("")}</div>
@@ -270,8 +258,6 @@
       ${!DEMO ? `<div class="notice ${isPilot() ? "acc" : isTestRun() ? "" : "ok"}" id="phasebox">${phaseNote()}</div>` : ""}
       ${INV ? `<div class="notice acc" id="invbox">กำลังตรวจ QR…</div>` : ""}
       <div class="admin" ${INV ? `style="display:none"` : ""}>
-        ${!DEMO ? `<fieldset class="q" id="set-q"><legend class="qh"><span class="qt">ชุดข้อมูล</span><span class="qhint">เลือกก่อนเริ่ม คำตอบชุดนี้จะถูกเก็บแยกตามที่เลือก</span></legend><div class="opts row">
-          ${Object.entries(SETS).map(([k, t]) => `<label class="opt${setOpen(k) ? "" : " off"}"><input type="radio" name="dataset" value="${k}" ${curSet() === k ? "checked" : ""} ${setOpen(k) ? "" : "disabled"}><span class="box" aria-hidden="true"></span><span class="ot">${t}${setOpen(k) ? "" : ` <small class="muted">(${k === "pilot" ? "ผู้ดูแลเปิดด้วยรหัส pilot" : "ผู้ดูแลเปิดด้วยรหัส begin"} หลังได้ใบ EC)</small>`}</span></label>`).join("")}</div></fieldset>` : ""}
         <fieldset class="q"><legend class="qh"><span class="qt">วิธีตอบ</span></legend><div class="opts row">
           ${[[1, "ผู้เก็บข้อมูลอ่านให้ฟัง"], [0, "คีย์จากฟอร์มกระดาษ (ผู้ตอบกรอกเอง)"], [3, "ให้ผู้ตอบสแกน QR ทำในโทรศัพท์ตัวเอง ต่อหน้าผู้เก็บข้อมูล"]].map(([c, t]) => `<label class="opt"><input type="radio" name="mode" value="${c}" ${st.meta.mode === c ? "checked" : ""}><span class="box"></span><span class="ot">${t}</span></label>`).join("")}</div></fieldset>
         <fieldset class="q" id="venue-q"><legend class="qh"><span class="qt">สถานที่พบผู้ตอบ <em class="muted">(ผู้เก็บข้อมูลเลือก)</em></span></legend><div class="opts row">
@@ -286,14 +272,12 @@
       </div>
       <p class="consent" id="consent"></p>
       <div class="nav"><span></span><button class="btn primary" id="start">เริ่มตอบ</button></div>
-      ${!INV ? `<p class="small muted ipclink">แบบทดลอง IPC ฉบับเต็ม 24 ข้อ เป็นแบบสอบถามแยก อยู่ที่ <a href="../ipc/">หน้าแบบทดลอง IPC</a></p>` : ""}
       ${!DEMO && !INV ? `<form class="phasecode" id="phaseform" autocomplete="off"><label class="fld"><span class="small muted">รหัสเปลี่ยนโหมด <em>(สำหรับผู้วิจัย)</em></span>
         <span class="inrow"><input class="txt short" id="phasecode" name="phasecode" autocapitalize="off" spellcheck="false" aria-describedby="phasehelp"><button class="btn ghost small" type="submit">ใช้รหัส</button></span></label>
         <p class="small muted" id="phasehelp">pilot = เปิดเก็บข้อมูลนำร่อง · begin = เปิดเก็บข้อมูลจริง · test = กลับเป็นโหมดทดสอบ ต้องเข้าสู่ระบบด้วยบัญชีผู้ดูแล</p><div id="phaseconfirm"></div></form>` : ""}
     </section>`;
     app.onchange = e => {
       const t = e.target;
-      if (t.name === "dataset") { st.meta.dataset = t.value; delete st.ans["3"]; delete st.ans["4"]; render(); return; }
       if (t.name === "mode") { st.meta.mode = +t.value; modeUI(); renderWho(); }
       if (t.name === "venue") st.meta.venue = +t.value;
       if (t.name === "gsize") { st.meta.group.size = +t.value; $("#gcode").hidden = st.meta.group.size < 2; }
@@ -348,7 +332,7 @@
     else {
       const j = await Auth.api("checkInvite", { invite: INV });
       if (!j.ok) { box.className = "notice"; box.innerHTML = `<b>QR นี้ใช้ไม่ได้</b> ${esc(j.error || "")}`; go.disabled = true; return; }
-      invInfo = { enumerator: j.enumerator, venue: j.venue }; if (j.dataset && SETS[j.dataset] && st.meta.dataset !== j.dataset) { st.meta.dataset = j.dataset; render(); return; }
+      invInfo = { enumerator: j.enumerator, venue: j.venue };
     }
     box.innerHTML = `<b>แบบสอบถามนี้ส่งมาจากผู้เก็บข้อมูลเลข ${invInfo.enumerator}</b><br><span class="small">ท่านตอบบนโทรศัพท์ของท่านเองได้เลย ไม่ต้องเข้าสู่ระบบ ใช้เวลาราว 25–30 นาที ขอให้ตอบให้เสร็จตอนนี้ ถ้ามีข้อสงสัยถามผู้เก็บข้อมูลที่อยู่ตรงนี้ได้</span>${INV === "demo" || DEMO ? `<br><span class="small">โหมดตัวอย่าง: QR สาธิต ไม่บันทึกคำตอบ</span>` : ""}`;
     chips();
@@ -419,7 +403,7 @@
     const dlg = qrDialog(); dlg.innerHTML = `<div class="qr-in"><p class="small muted">กำลังสร้าง QR…</p></div>`;
     try {
       if (!fresh) { const j = await qrApi("invites"); qrOpen = j.open; if (qrOpen.length >= QMAX) { drawQR(null); return; } }
-      const j = await qrApi("invite", { venue: st.meta.venue, dataset: curSet() });
+      const j = await qrApi("invite", { venue: st.meta.venue });
       qrOpen = j.open;
       const it = { id: j.id, t: j.invite, venue: st.meta.venue, startBy: j.startBy, demo: j.invite === "demo" };
       if (!it.demo) keepQR(keptQR().concat([it]));
@@ -486,7 +470,6 @@
     if (t.name === "res_a") { st.ans["3"] = { a: t.value }; delete st.ans["4"]; refresh("3"); refresh("4"); return; }
     if (t.name === "res_t") { st.ans["3"].t = t.value; delete st.ans["4"]; refresh("4"); return; }
     if (t.name === "res_m") { st.ans["3"].m = t.value; return; }
-    if (t.name === "res_o") { st.ans["3"].o = t.value.slice(0, 80); return; }
     if (t.name === "ph" || t.name === "pht") { st.contact = st.contact || {}; st.contact[t.name === "ph" ? "phone" : "time"] = t.value; clearFlag("63"); return; }
     if (t.name === "q_1m") { st.ans["1m"] = +t.value; clearFlag("1"); return; }
     if (t.name === "q_8b") { st.ans["8b"] = t.value === "" ? undefined : +t.value; return; }
@@ -807,7 +790,7 @@
   function record() {
     const sc = scores();
     return {
-      meta: { id: st.meta.id, code: null, test: DEMO || isTestRun(), phase: !DEMO && isPilot() ? "pilot" : undefined, dataset: DEMO ? "test" : curSet(), enumerator: st.meta.enumerator, collector: st.meta.mode === 0 || st.meta.mode === 1 ? st.meta.collector : "", cdate: st.meta.cdate, collectedBE: beYear(st.meta.cdate || todayISO()), started: st.meta.started, finished: new Date().toISOString(), seconds: Math.round((performance.now() - (st.t0 || 0)) / 1000), mode: st.meta.mode, venue: st.meta.venue, design: st.meta.design, version: st.meta.version, order: st.meta.order, gsize: st.meta.mode === 3 ? "" : st.meta.group.size, gcode: st.meta.group.size > 1 ? st.meta.group.code : "", instrument: "v1.9" },
+      meta: { id: st.meta.id, code: null, test: DEMO || isTestRun(), phase: !DEMO && isPilot() ? "pilot" : undefined, enumerator: st.meta.enumerator, collector: st.meta.mode === 0 || st.meta.mode === 1 ? st.meta.collector : "", cdate: st.meta.cdate, collectedBE: beYear(st.meta.cdate || todayISO()), started: st.meta.started, finished: new Date().toISOString(), seconds: Math.round((performance.now() - (st.t0 || 0)) / 1000), mode: st.meta.mode, venue: st.meta.venue, design: st.meta.design, version: st.meta.version, order: st.meta.order, gsize: st.meta.mode === 3 ? "" : st.meta.group.size, gcode: st.meta.group.size > 1 ? st.meta.group.code : "", instrument: "v1.9" },
       answers: { ...st.ans }, text: { ...st.txt },
       conjoint: (st.cj.tasks || []).map((t, i) => ({ task: i + 1, pair: t.k, item: t.n, chosen: t.choice, ms: t.at, left: strip(t.L, t.design), right: strip(t.Rt, t.design) })),
       ipc: { I: sc.I, P: sc.P, C: sc.C, complete: sc.complete },
@@ -906,7 +889,7 @@
   let toastT;
   /* ---------- phase: read from the server; changed by an admin with a code ---------- */
   function phaseNote() {
-    if (isPilot()) return `<b>${PH_LABEL.pilot}</b><br><span class="small">ทดลองแบบสอบถามกับผู้ตอบจริงจำนวนน้อย เพื่อหาข้อที่ฟังไม่เข้าใจ คำตอบแยกไว้ในชีตนำร่อง ไม่นำไปทดสอบสมมติฐาน ไม่ขอเบอร์โทรสำหรับระยะที่ 2 รหัสผู้ตอบขึ้นต้นด้วย P-${PILOT_NOEC ? " · <b>ยังไม่มี EC</b>: ข้อมูลใช้ตีพิมพ์ไม่ได้" : ""}</span>`;
+    if (isPilot()) return `<b>${PH_LABEL.pilot}</b><br><span class="small">เก็บเฉพาะผู้ที่อาศัยและมีชื่อในทะเบียนบ้าน อ.ชุมพลบุรี จ.สุรินทร์ คำตอบแยกไว้ในชีตนำร่อง ไม่นำไปทดสอบสมมติฐาน และไม่ขอเบอร์โทรสำหรับระยะที่ 2 รหัสผู้ตอบขึ้นต้นด้วย P-</span>`;
     if (isTestRun()) return `<b>${PH_LABEL.test}</b><br><span class="small">ทุกชุดบันทึกเป็นข้อมูลทดสอบ ไม่นับเป็นข้อมูลวิจัย</span>`;
     return `<b>${PH_LABEL.live}</b><br><span class="small">คำตอบนับเป็นข้อมูลวิจัย</span>`;
   }
@@ -914,8 +897,7 @@
     if (DEMO || !CONFIG.endpoint) return;
     try {
       const j = await fetch(CONFIG.endpoint, { cache: "no-store" }).then(r => r.json());
-      if (j && "noEc" in j && (j.noEc || "") !== PILOT_NOEC) { PILOT_NOEC = j.noEc || ""; store.set("pilotNoEc", PILOT_NOEC); if (st.screen === "intro") render(); }
-      if (j && ["test", "pilot", "live"].includes(j.phase) && j.phase !== PHASE) { PHASE = j.phase; store.set("phase", PHASE); if (!INV && st.meta && st.meta.dataset && !setOpen(st.meta.dataset)) st.meta.dataset = PHASE; if (st.screen === "intro" || st.screen === "part") render(); }
+      if (j && ["test", "pilot", "live"].includes(j.phase) && j.phase !== PHASE) { PHASE = j.phase; store.set("phase", PHASE); if (st.screen === "intro" || st.screen === "part") render(); }
       else if (j && j.phase) store.set("phase", j.phase);
     } catch (e) { /* offline: keep the last phase seen on this device */ }
   }
@@ -926,24 +908,18 @@
     const se = Auth.get();
     if (!se || se.demo || se.user.role !== "admin") { box.innerHTML = `<p class="small err" role="alert">ต้องเข้าสู่ระบบด้วยบัญชีผู้ดูแล (admin) ก่อนจึงจะเปลี่ยนโหมดได้</p>`; return; }
     if (to === PHASE) { box.innerHTML = `<p class="small">ตอนนี้อยู่ใน${PH_LABEL[to]}อยู่แล้ว</p>`; return; }
-    const what = { pilot: "เปิดเก็บข้อมูล<b>นำร่อง</b> (ขั้น 1.2 ประมาณ 10–12 คน) คำตอบจะเก็บแยกในชีต “คำตอบ (นำร่อง)”", live: "เปิดเก็บข้อมูล<b>จริง</b> (ขั้น 1.3) คำตอบจะนับเป็นข้อมูลวิจัย และหยุดรับคำตอบนำร่อง", test: "กลับเป็น<b>โหมดทดสอบ</b> คำตอบจะบันทึกเป็นข้อมูลทดสอบ" }[to];
+    const what = { pilot: "เปิดเก็บข้อมูล<b>นำร่อง</b> (ขั้น 1.2 ที่ อ.ชุมพลบุรี 10–12 คน) คำตอบจะเก็บแยกในชีต “คำตอบ (นำร่อง)”", live: "เปิดเก็บข้อมูล<b>จริง</b> (ขั้น 1.3) คำตอบจะนับเป็นข้อมูลวิจัย และหยุดรับคำตอบนำร่อง", test: "กลับเป็น<b>โหมดทดสอบ</b> คำตอบจะบันทึกเป็นข้อมูลทดสอบ" }[to];
     box.innerHTML = `<div class="notice warn" style="margin-top:8px"><p>${what}</p>
-      ${to !== "test" ? `<label class="fld"><span>เลขที่หนังสือรับรองจริยธรรม (EC) <em>(เลขที่ใบรับรองที่คณะกรรมการจริยธรรมฯ ออกให้เมื่ออนุมัติโครงการ)</em></span><input class="txt" id="ecno" placeholder="เช่น HE69xxxx"></label>` : ""}
-      ${to === "pilot" ? `<label class="opt" style="margin-top:6px"><input type="checkbox" id="noec"><span class="box" aria-hidden="true"></span><span class="ot">ยังไม่มี EC: ทดลองเครื่องมือตามที่อาจารย์ที่ปรึกษาอนุมัติ<small>ระบบบันทึกไว้ในบันทึกระบบ ทุกคำตอบนำร่องติดป้าย “ก่อน EC” ใช้ปรับภาษาของแบบสอบถามได้ แต่นำไปรายงานผลหรือตีพิมพ์ไม่ได้ และควรแจ้ง EC ตามจริง</small></span></label>
-        <label class="fld" id="noecf" hidden><span>ใครอนุมัติ เมื่อไร</span><input class="txt" id="noecnote" placeholder="เช่น รศ.ดร.จงรักษ์ 13 พ.ย. 69"></label>` : ""}
+      ${to !== "test" ? `<label class="fld"><span>เลขที่หนังสือรับรองจริยธรรม (EC) <em>(ต้องได้รับอนุมัติก่อนเก็บข้อมูลจากคนจริง)</em></span><input class="txt" id="ecno" placeholder="เช่น HE69xxxx"></label>` : ""}
       <div class="row" style="margin-top:8px;display:flex;gap:8px"><button class="btn primary small" type="button" id="phgo">ยืนยัน</button><button class="btn ghost small" type="button" id="phno">ยกเลิก</button></div></div>`;
     $("#phno").onclick = () => { box.innerHTML = ""; };
-    const ne = $("#noec"); if (ne) ne.onchange = () => { $("#noecf").hidden = !ne.checked; $("#ecno").disabled = ne.checked; if (ne.checked) $("#noecnote").focus(); };
     $("#phgo").onclick = async () => {
-      const noEc = !!(ne && ne.checked), note = noEc ? $("#noecnote").value.trim() : "";
-      const ec = to !== "test" && !noEc ? $("#ecno").value.trim() : "";
-      if (noEc && note.length < 3) { toast("ระบุว่าใครอนุมัติ และวันที่"); $("#noecnote").focus(); return; }
-      if (to !== "test" && !noEc && ec.length < 3) { toast("ใส่เลขที่หนังสือรับรอง EC หรือติ๊ก “ยังไม่มี EC”"); $("#ecno").focus(); return; }
+      const ec = to !== "test" ? $("#ecno").value.trim() : "";
+      if (to !== "test" && ec.length < 3) { toast("ใส่เลขที่หนังสือรับรอง EC ก่อน"); $("#ecno").focus(); return; }
       $("#phgo").disabled = true;
-      const j = await Auth.api("setPhase", { phase: to, ec, noEc, note });
+      const j = await Auth.api("setPhase", { phase: to, ec });
       if (!j.ok) { $("#phgo").disabled = false; toast(j.error || "เปลี่ยนโหมดไม่สำเร็จ"); return; }
-      PILOT_NOEC = j.phase === "pilot" ? (j.noEc || "") : ""; store.set("pilotNoEc", PILOT_NOEC);
-      PHASE = j.phase; store.set("phase", PHASE); delete st.ans["3"]; delete st.ans["4"]; st.meta.dataset = PHASE;
+      PHASE = j.phase; store.set("phase", PHASE); delete st.ans["3"]; delete st.ans["4"];
       toast(`เปลี่ยนเป็น${PH_LABEL[PHASE]}แล้ว`); render();
     };
   }

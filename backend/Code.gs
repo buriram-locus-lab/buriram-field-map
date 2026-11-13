@@ -51,7 +51,6 @@ var API = {
   users: apiUsers_, addUser: apiAddUser_, resetPassword: apiResetPassword_, setUser: apiSetUser_,
   seedTest: apiSeedTest_, clearTest: apiClearTest_, invite: apiInvite_, invites: apiInvites_, cancelInvite: apiCancelInvite_, checkInvite: apiCheckInvite_,
   progress: apiProgress_, calendar: apiCalendar_, setDay: apiSetDay_, setPhase: apiSetPhase_,
-  submitIpc: apiSubmitIpc_, ipcList: apiIpcList_,
 };
 function doPost(e) {
   var lock = LockService.getScriptLock();
@@ -68,7 +67,7 @@ function doPost(e) {
   } finally { try { lock.releaseLock(); } catch (x) {} }
 }
 /** Opening the web app URL in a browser shows nothing but a status line: the data is reached only through the website after signing in. */
-function doGet() { var ph = phase_(); return out_({ ok: true, service: "buriram-survey", accept: ph === "live", phase: ph, noEc: ph === "pilot" && props_().getProperty("PILOT_NOEC") ? "1" : "" }); }
+function doGet() { var ph = phase_(); return out_({ ok: true, service: "buriram-survey", accept: ph === "live", phase: ph }); }
 
 /* ---------------- collection ---------------- */
 function validDate_(iso) {
@@ -82,17 +81,13 @@ function validDate_(iso) {
 /** Saves one record. The respondent code is issued here, after the form is complete. */
 function apiSubmit_(body) {
   var rec = body.rec || body, m = rec.meta = rec.meta || {};
-  var ph = phase_(), inv = +m.mode === 3 ? readInvite_(body.invite, INVITE_GRACE_MIN) : null;
-  /* dataset of this form: from the QR when answered on the respondent's phone, otherwise as chosen on the first screen */
-  var set = inv && inv.s ? inv.s : (m.test ? "test" : (m.phase === "pilot" || m.dataset === "pilot") ? "pilot" : "live");
-  m.dataset = set; m.test = set === "test"; if (set === "pilot") m.phase = "pilot"; else delete m.phase;
-  var isTest = set === "test", pilot = set === "pilot";
+  var isTest = !!m.test, ph = phase_(), pilot = !isTest && m.phase === "pilot";
   if (pilot && ph !== "pilot") throw new Error("ระบบไม่ได้อยู่ในช่วงนำร่องแล้ว คำตอบนำร่องชุดนี้จึงไม่ถูกบันทึก");
-  if (set === "live" && ph !== "live") throw new Error(ph === "pilot" ? "ตอนนี้เป็นช่วงนำร่อง ยังไม่เปิดเก็บข้อมูลจริง" : "ระบบยังไม่เปิดรับข้อมูลจริง");
+  if (!isTest && !pilot && ph !== "live") throw new Error(ph === "pilot" ? "ตอนนี้เป็นช่วงนำร่อง ยังไม่เปิดเก็บข้อมูลจริง" : "ระบบยังไม่เปิดรับข้อมูลจริง");
   if (!m.id || String(m.id).length < 6) throw new Error("คำตอบไม่มีเลขอ้างอิง");
   var mode = +m.mode, enumr, collector = "", cdate;
   if (mode === 3) {                                     // answered on the respondent's own phone from a collector's QR
-    var o = inv, used = inviteUsed_(o.i);
+    var o = readInvite_(body.invite, INVITE_GRACE_MIN), used = inviteUsed_(o.i);
     if (used && used !== String(m.id)) throw new Error("QR นี้ถูกใช้ตอบไปแล้ว หนึ่ง QR ใช้ได้หนึ่งคน");
     enumr = o.e; collector = o.u; cdate = todayISO_(); m.inv = o.i; m.venue = o.v;
   }
@@ -122,7 +117,6 @@ function saveRecord_(rec, enumr, collector, cdate, pilot) {
   var contact = rec.contact; delete rec.contact;            // phone numbers never enter the responses sheet
   var flat = flattenRecord(rec);
   flat.received = new Date(); flat.flag = dupOf ? "อาจซ้ำกับ " + dupOf : "";
-  if (pilot && props_().getProperty("PILOT_NOEC")) flat.flag = (flat.flag ? flat.flag + " · " : "") + "ก่อน EC";
   flat.json = JSON.stringify({ answers: rec.answers, text: rec.text, ipc: rec.ipc });
   var row = rowForHeader(header, flat);
   if (header.length > data[0].length) R.getRange(1, 1, 1, header.length).setValues([header]).setFontWeight("bold");
@@ -213,80 +207,13 @@ function apiSetDay_(b) {
 function apiSetPhase_(b) {
   var u = auth_(b.token, "admin"), to = String(b.phase || ""), ec = String(b.ec || "").trim().slice(0, 60);
   if (["test", "pilot", "live"].indexOf(to) < 0) throw new Error("ไม่รู้จักโหมดนี้");
-  /* A pilot may open before EC approval only as instrument testing the advisor approved (b.noEc + b.note). It is logged, every pilot
-     record is flagged "ก่อน EC", and those answers cannot be published. Live always needs an EC certificate number. */
-  var noEc = to === "pilot" && !!b.noEc, note = String(b.note || "").trim().slice(0, 120);
-  if (noEc && note.length < 3) throw new Error("ระบุว่าใครอนุมัติให้ทดลองเครื่องมือก่อนได้ EC (เช่น ชื่ออาจารย์ที่ปรึกษาและวันที่)");
-  if (to !== "test" && !noEc && ec.length < 3) throw new Error("ใส่เลขที่หนังสือรับรองจริยธรรม (EC) ก่อนเปิดเก็บข้อมูล");
+  if (to !== "test" && ec.length < 3) throw new Error("ใส่เลขที่หนังสือรับรองจริยธรรม (EC) ก่อนเปิดเก็บข้อมูล");
   var p = props_(), from = phase_();
   p.setProperty("PHASE", to); p.setProperty("ACCEPT", to === "live" ? "1" : "0");
-  if (to !== "test" && !noEc) p.setProperty("EC_NO", ec);
-  if (to === "pilot") p.setProperty("PILOT_NOEC", noEc ? note : ""); else if (to === "live") p.setProperty("PILOT_NOEC", "");
+  if (to !== "test") p.setProperty("EC_NO", ec);
   p.setProperty("PHASE_AT", new Date().toISOString());
-  log_(u.username, "เปลี่ยนโหมด " + from + " → " + to + (noEc ? " · ยังไม่มี EC: ทดลองเครื่องมือ (" + note + ") ข้อมูลใช้ตีพิมพ์ไม่ได้" : ec ? " · EC " + ec : ""));
-  return { phase: to, from: from, ec: noEc ? "" : (p.getProperty("EC_NO") || ""), noEc: p.getProperty("PILOT_NOEC") || "" };
-}
-
-/* ---------------- IPC 24-item trial (Levenson, 1981), separate from the main questionnaire ----------------
-   Its own page (/ipc/), not part of the main questionnaire. Answered on the collector's device: mode 1 read aloud · 2 the respondent
-   reads it on the collector's device · 0 keyed in from a paper form. The 9 short-form items are scored from the same answers for comparison. Each item −3…+3 without 0; each subscale = sum + 24 (0–48).
-   Scores are returned to the page only for the test dataset (the researcher trying it); other answers show scores to admins only. */
-var IPC24_SHEET = "IPC 24 ข้อ (ทดลอง)";
-var IPC24_KEY = { I: [1, 4, 5, 9, 18, 19, 21, 23], P: [3, 8, 11, 13, 15, 17, 20, 22], C: [2, 6, 7, 10, 12, 14, 16, 24] };
-/* The 9 items of the short form in the main questionnaire (items 47–55), by Levenson number. Short subscale = sum + 9 (0–18). */
-var IPC9_KEY = { I: [23, 18, 19], P: [11, 3, 13], C: [2, 6, 7] };
-var IPC24_HEADER = ["id", "dataset", "received", "collector", "enumerator", "mode", "main_code", "started", "finished", "seconds"]
-  .concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24].map(function (k) { return "L" + k; }))
-  .concat(["I", "P", "C", "lean", "answered", "s9_I", "s9_P", "s9_C", "s9_lean", "lean_same", "flag"]);
-/* Full form: lean = highest subscale unless the top two are within 3 points ("none").
-   Short form: the same rule scaled to its range (0–18): within 1 point → "none". */
-function ipcSub_(a, key, items, gap) {
-  var out = {}, n = 0;
-  ["I", "P", "C"].forEach(function (d) {
-    var sum = 0, got = 0;
-    key[d].forEach(function (k) { var v = +a[k]; if ([-3, -2, -1, 1, 2, 3].indexOf(v) >= 0) { sum += v; got++; } });
-    out[d] = got === items ? sum + 3 * items : null; n += got;
-  });
-  var have = ["I", "P", "C"].filter(function (d) { return out[d] !== null; }).sort(function (x, y) { return out[y] - out[x]; });
-  out.lean = have.length === 3 ? (out[have[0]] - out[have[1]] <= gap ? "none" : have[0]) : "";
-  out.answered = n;
-  return out;
-}
-function ipc24Score_(a) {
-  var out = ipcSub_(a, IPC24_KEY, 8, 3), s = ipcSub_(a, IPC9_KEY, 3, 1);
-  out.short = { I: s.I, P: s.P, C: s.C, lean: s.lean };
-  out.same = out.lean && s.lean ? (out.lean === s.lean ? 1 : 0) : "";
-  return out;
-}
-function apiSubmitIpc_(b) {
-  var u = auth_(b.token, "collector"), r = b.rec || {}, m = r.meta || {}, a = r.answers || {}, ph = phase_();
-  var set = ["test", "pilot", "live"].indexOf(m.dataset) >= 0 ? m.dataset : "test";
-  if (set !== "test" && set !== ph) throw new Error("ชุดข้อมูล “" + set + "” ยังไม่เปิด ผู้ดูแลต้องเปิดด้วยรหัสก่อน");
-  if (!m.id || String(m.id).length < 6) throw new Error("คำตอบไม่มีเลขอ้างอิง");
-  var sh = sheet_(IPC24_SHEET, IPC24_HEADER), v = sh.getDataRange().getValues();
-  if (v[0].length < IPC24_HEADER.length) sh.getRange(1, 1, 1, IPC24_HEADER.length).setValues([IPC24_HEADER]).setFontWeight("bold");   // sheet made by v2.0
-  for (var i = 1; i < v.length; i++) if (String(v[i][0]) === String(m.id)) return { id: m.id, dataset: set, dup: true, scores: set === "test" ? ipc24Score_(a) : null };
-  var sc = ipc24Score_(a), secs = m.started && m.finished ? Math.round((new Date(m.finished) - new Date(m.started)) / 1000) : "";
-  var row = [String(m.id), set, new Date(), u.username, u.enumerator || "", [0, 1, 2].indexOf(+m.mode) >= 0 ? +m.mode : 1, String(m.mainCode || "").slice(0, 20), m.started || "", m.finished || "", secs];
-  for (var k = 1; k <= 24; k++) { var x = +a[k]; row.push([-3, -2, -1, 1, 2, 3].indexOf(x) >= 0 ? x : ""); }
-  var flag = set === "pilot" && props_().getProperty("PILOT_NOEC") ? "ก่อน EC" : "";
-  row = row.concat([sc.I, sc.P, sc.C, sc.lean, sc.answered, sc.short.I, sc.short.P, sc.short.C, sc.short.lean, sc.same, flag]);
-  sh.appendRow(row);
-  log_(u.username, "IPC 24 ข้อ ชุด " + set + " " + m.id);
-  return { id: m.id, dataset: set, scores: set === "test" ? sc : null };
-}
-/** Latest IPC-24 results for the admin page (scores only, no answers). */
-function apiIpcList_(b) {
-  auth_(b.token, "admin");
-  var v = sheet_(IPC24_SHEET, IPC24_HEADER).getDataRange().getValues(), h = v[0].map(String);
-  var col = function (n) { return h.indexOf(n); };
-  var rows = v.slice(1).reverse().slice(0, 200).map(function (r) {
-    return { id: r[col("id")], set: r[col("dataset")], at: r[col("received")] instanceof Date ? r[col("received")].toISOString() : String(r[col("received")]), by: r[col("collector")],
-      main: r[col("main_code")], I: r[col("I")], P: r[col("P")], C: r[col("C")], lean: r[col("lean")], n: r[col("answered")],
-      sI: col("s9_I") >= 0 ? r[col("s9_I")] : "", sP: col("s9_P") >= 0 ? r[col("s9_P")] : "", sC: col("s9_C") >= 0 ? r[col("s9_C")] : "",
-      slean: col("s9_lean") >= 0 ? r[col("s9_lean")] : "", flag: col("flag") >= 0 ? r[col("flag")] : "" };
-  });
-  return { rows: rows, total: v.length - 1 };
+  log_(u.username, "เปลี่ยนโหมด " + from + " → " + to + (ec ? " · EC " + ec : ""));
+  return { phase: to, from: from, ec: p.getProperty("EC_NO") || "" };
 }
 
 /* ---------------- data (admin only) ---------------- */
@@ -302,7 +229,7 @@ function apiData_(b) {
       mode: g("mode"), P: g("P"), I: g("I"), C: g("C"), phase2: +g("q63") === 1 || +g("q75") === 1 };
   });
   var K = sheet_(SHEETS.contacts, CONTACT_HEADER).getLastRow() - 1;
-  return { rows: rows, lgus: LGUS, district: DISTRICT_TARGET, contacts: Math.max(0, K), accept: phase_() === "live", phase: phase_(), ec: props_().getProperty("EC_NO") || "", noEc: phase_() === "pilot" ? (props_().getProperty("PILOT_NOEC") || "") : "",
+  return { rows: rows, lgus: LGUS, district: DISTRICT_TARGET, contacts: Math.max(0, K), accept: phase_() === "live", phase: phase_(), ec: props_().getProperty("EC_NO") || "",
     deleteBy: props_().getProperty("DELETE_BY") || "", sheetUrl: book_().getUrl(), me: publicUser_(me) };
 }
 function apiDetail_(b) {
@@ -327,27 +254,17 @@ function apiDeleteContacts_(b) {
 }
 
 /** Data set as CSV. Phone numbers are never part of it. which = "responses" | "conjoint"; test rows only when asked. */
-/** Download one dataset as CSV (admin only). b.set: test | pilot | live · b.kind: responses | conjoint | ipc24.
-    test and live share the main sheets (split by the test column); pilot has its own sheets. */
 function apiExport_(b) {
   var me = auth_(b.token, "admin");
-  var set = ["test", "pilot", "live"].indexOf(b.set) >= 0 ? b.set : (b.includeTest ? "all" : "live");   // older pages send which/includeTest
-  var kind = b.kind || (b.which === "conjoint" ? "conjoint" : b.which === "pilot" ? "responses" : b.which === "pilot_conjoint" ? "conjoint" : "responses");
-  if (b.which === "pilot" || b.which === "pilot_conjoint") set = "pilot";
-  var name = kind === "ipc24" ? IPC24_SHEET : kind === "conjoint" ? (set === "pilot" ? PILOT_SHEETS.conjoint : SHEETS.conjoint) : (set === "pilot" ? PILOT_SHEETS.responses : SHEETS.responses);
-  var v = sheet_(name, ["code"]).getDataRange().getValues(), h = v[0].map(String), ti = h.indexOf("test"), si = h.indexOf("dataset"), ji = h.indexOf("json");
+  var W = { responses: SHEETS.responses, conjoint: SHEETS.conjoint, pilot: PILOT_SHEETS.responses, pilot_conjoint: PILOT_SHEETS.conjoint }, which = W[b.which] || SHEETS.responses;
+  var v = sheet_(which, ["code"]).getDataRange().getValues(), h = v[0].map(String), ti = h.indexOf("test"), ji = h.indexOf("json");
   var keep = h.map(function (_, i) { return i !== ji; });
   var cell = function (x) { if (x instanceof Date) x = Utilities.formatDate(x, TZ, "yyyy-MM-dd HH:mm:ss"); x = x === null || x === undefined ? "" : String(x); return /[",\n\r]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
-  var inSet = function (r) {
-    if (set === "all") return true;
-    if (si >= 0) return String(r[si]) === set;                       // IPC-24 sheet keeps the dataset name
-    if (set === "pilot") return true;                                // the pilot sheets hold only pilot answers
-    return set === "test" ? +r[ti] === 1 : +r[ti] !== 1;
-  };
-  var rows = v.filter(function (r, i) { return i === 0 || inSet(r); });
+  var rows = v.filter(function (r, i) { return i === 0 || b.includeTest || +r[ti] !== 1; });
+  var testRows = v.slice(1).filter(function (r) { return +r[ti] === 1; }).length;
   var csv = rows.map(function (r) { return r.filter(function (_, i) { return keep[i]; }).map(cell).join(","); }).join("\r\n");
-  log_(me.username, "ดาวน์โหลด " + name + " ชุด " + set + " " + (rows.length - 1) + " แถว");
-  return { csv: "﻿" + csv, rows: rows.length - 1, name: set + "_" + kind + "_" + Utilities.formatDate(new Date(), TZ, "yyyyMMdd-HHmm") + ".csv" };
+  log_(me.username, "ดาวน์โหลดชุดข้อมูล " + which + " " + (rows.length - 1) + " แถว");
+  return { csv: "﻿" + csv, rows: rows.length - 1, testRows: testRows, name: (W[b.which] ? b.which : "responses") + "_" + Utilities.formatDate(new Date(), TZ, "yyyyMMdd-HHmm") + ".csv" };
 }
 
 /** Fake records for testing the pipeline before EC approval. They carry test = 1. */
