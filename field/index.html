@@ -252,6 +252,40 @@ footer{margin-top:36px;font-size:.8rem;color:var(--muted);display:grid;gap:6px;m
   .tier .tnote{display:none}
   .tier .tn{display:block;font-size:1rem}
 }
+/* Model tab: population → sample-size logic → power chart (simulation) → equations grouped by research question */
+.pw{--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .pw{--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500}}
+:root[data-theme="dark"] .pw{--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500}
+.mv{display:grid;gap:22px;max-width:980px}
+.mv h2{font-family:var(--f-display);font-size:1.25rem;margin:0}
+.mv table.big td{white-space:normal;vertical-align:top}
+.mv h3{font-family:var(--f-display);font-size:1.02rem;margin:0}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;gap:4px}
+.step b.big{font-family:var(--f-mono);font-size:1.5rem;font-weight:500}
+.step span{font-size:.84rem;color:var(--muted)}
+.eqf{font-family:var(--f-mono);font-size:.84rem;background:var(--sunk);border-radius:8px;padding:8px 10px;overflow-x:auto;white-space:nowrap}
+.eqt{font-size:1rem;line-height:1.9;background:var(--sunk);border-radius:8px;padding:10px 12px}
+.eqcard{display:grid;gap:8px}
+.eqcard .tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-size:.75rem;font-weight:600;border:1px solid var(--line2);border-radius:999px;padding:1px 9px;color:var(--ink)}
+.tag.main{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.eqcard dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 12px;margin:0;font-size:.9rem}
+.eqcard dt{color:var(--muted);font-weight:600}
+.eqcard dd{margin:0}
+.rq{display:grid;gap:12px;border-top:2px solid var(--line);padding-top:14px}
+.rq > p{margin:0}
+.pwbox{display:grid;gap:10px}
+.pwlegend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.85rem}
+.pwlegend span{display:inline-flex;align-items:center;gap:6px}
+.pwlegend i{width:16px;height:3px;border-radius:2px;display:inline-block}
+.pwchart{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px}
+.pwchart svg{display:block;width:100%;height:auto}
+.pwtip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--line2);border-radius:8px;padding:8px 10px;font-size:.8rem;box-shadow:0 4px 14px rgb(0 0 0/.12);display:grid;gap:2px;min-width:210px}
+.pwtip span{display:flex;align-items:center;gap:6px}
+.pwtip i{width:10px;height:3px;border-radius:2px;display:inline-block}
+.pwtip b{font-family:var(--f-mono);font-weight:500;margin-left:auto}
+@media (max-width:640px){.eqcard dl{grid-template-columns:1fr}.eqcard dt{margin-top:4px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -275,6 +309,7 @@ footer{margin-top:36px;font-size:.8rem;color:var(--muted);display:grid;gap:6px;m
   <button role="tab" data-v="split" aria-selected="false">ตำบลที่มี 2 อปท.</button>
   <button role="tab" data-v="method" aria-selected="false">วิธีเก็บและกฎภาคสนาม</button>
   <button role="tab" data-v="plan" aria-selected="false">ตารางวันลงพื้นที่</button>
+  <button role="tab" data-v="model" aria-selected="false">ตัวอย่างและสมการ</button>
 </nav>
 
 <main>
@@ -350,11 +385,147 @@ footer{margin-top:36px;font-size:.8rem;color:var(--muted);display:grid;gap:6px;m
     <div class="days" id="days"></div>
   </div>
 </section>
+<section id="v-model" class="pw" hidden>
+<div class="mv">
+  <div class="prose" style="max-width:80ch;gap:8px">
+    <span class="eyebrow">ประชากร · ขนาดตัวอย่าง · แบบจำลอง</span>
+    <h2>เก็บจากใคร กี่คน และแต่ละสมการตอบคำถามไหน</h2>
+    <p class="muted">หน้านี้สรุปจากโครงร่างที่ยื่น EC (15 พ.ย. 2569) และแผนการวิเคราะห์ข้อมูลฉบับที่ 1.0 ตัวเลขกำลังทดสอบมาจากการจำลอง ไม่ใช่ผลการวิจัย ยังไม่มีข้อมูลจริงจนกว่า EC จะอนุมัติ</p>
+  </div>
+
+  <div class="rq">
+    <h2>1 · ประชากร</h2>
+    <p>ผู้มีสิทธิเลือกตั้ง (อายุ 18 ปีขึ้นไป) ที่มีชื่อในทะเบียนบ้านของ <b>40 อปท.</b> ใน 4 อำเภอ คือ เมืองบุรีรัมย์ สตึก บ้านด่าน และแคนดง รวม <b class="num">315,590</b> คน (กรมการปกครอง ธ.ค. 2568) โควตาแบ่งระดับ<b>อำเภอ</b> × รุ่นอายุ (Gen Z / Gen อื่น) × เพศ ตามสัดส่วนประชากร ส่วน อปท. บันทึกไว้เป็นตัวแปรวิเคราะห์ ไม่ใช่โควตา</p>
+  </div>
+
+  <div class="rq">
+    <h2>2 · ขนาดตัวอย่าง: ทำไมขั้นต่ำ 440 และเป้า 600</h2>
+    <div class="steps">
+      <div class="step"><span>Cochran ความเชื่อมั่น 95%</span><b class="big">384</b><span>n₀ = 1.96² × 0.5 × 0.5 ÷ 0.05²</span></div>
+      <div class="step"><span>เผื่อชุดใช้ไม่ได้ 10%</span><b class="big">427</b><span>384 ÷ 0.9</span></div>
+      <div class="step"><span>เกณฑ์ logit: 10 เหตุการณ์ต่อพารามิเตอร์</span><b class="big">434</b><span>10 × 13 พารามิเตอร์ ÷ อัตราเลือกผู้สมัครเครือข่าย 0.30</span></div>
+      <div class="step" style="border-color:var(--accent)"><span>ขั้นต่ำที่เก็บ (เกณฑ์ที่สูงที่สุดปัดขึ้น)</span><b class="big">440</b><span>เป้าหมาย 600 เพื่อให้กำลังทดสอบ H1a ราว 0.90</span></div>
+    </div>
+    <div class="tblwrap"><table class="big"><thead><tr><th class="l">เก็บได้จริง (ชุดที่ใช้ได้)</th><th class="l">แบบจำลองหลัก</th><th class="l">สิ่งที่รายงาน</th></tr></thead><tbody>
+      <tr><td class="l"><b>434 ขึ้นไป</b></td><td class="l">logit สมการ 1</td><td class="l">ตามแผนทุกสมมติฐาน</td></tr>
+      <tr><td class="l"><b>200–433</b></td><td class="l">OLS บนส่วนต่างความมั่นใจ (สมการ 7c) + LPM</td><td class="l">logit รายงานเป็นการตรวจซ้ำ ใช้ Firth logit</td></tr>
+      <tr><td class="l"><b>ต่ำกว่า 200</b></td><td class="l">ไม่ทดสอบสมมติฐาน</td><td class="l">สถิติเชิงพรรณนา + สัมภาษณ์ระยะที่ 2</td></tr>
+    </tbody></table></div>
+    <p class="note info">ตัดสินจากจำนวนชุดที่ผ่านเกณฑ์คุณภาพเท่านั้น และจะไม่ดูผลการทดสอบสมมติฐานก่อนเก็บครบ โควตาราย อำเภอ × ช่อง ของทั้ง 3 ระดับ (200 / 440 / 600) ดูได้ที่แท็บ "ตารางสัดส่วน"</p>
+  </div>
+
+  <div class="rq pwbox">
+    <h2>3 · กราฟค่าคาดหวังจากการจำลอง: โอกาสตรวจพบผลถ้ามีผลจริง (กำลังทดสอบ)</h2>
+    <p class="muted" style="margin:0">แต่ละจุดคือสัดส่วนจาก 1,000 รอบจำลองที่ได้ p &lt; 0.05 (สองทาง) เส้นประแนวนอน 0.80 คือระดับที่นิยมถือว่าพอ แตะหรือชี้ที่กราฟเพื่อดูตัวเลข</p>
+    <div class="pwlegend" id="pwlegend"></div>
+    <div class="pwchart" id="pwchart"></div>
+    <details><summary>ดูเป็นตาราง</summary><div class="tblwrap" style="margin-top:8px"><table class="big" id="pwtable"></table></div></details>
+    <div class="script"><b>สมมติฐานของการจำลอง (ไม่ใช่ข้อมูลจริง)</b>
+      <span>อัตราเลือกตัวเลือก 1 เมื่อ zP = 0: คู่ 1 เครือข่าย 30% · คู่ 2 ตอบแทน 50% · คู่ 3 มีเงื่อนไข 25% · คู่ 4 แน่นอน 60%</span>
+      <span>ความเที่ยงของ zP 0.70 · ความต่างรายบุคคล SD 1.0 (ICC ราว 0.23) · ความชันของ zP ในคู่ 3–4 = OR 1.2</span>
+      <span>OR คืออัตราส่วนออดส์ต่อ zP ที่เพิ่ม 1 SD · คอนทราสต์ = ความชันคู่ 2 ลบคู่ 4 ในแบบจำลองซ้อนแถว · OLS คำนวณตรงจากสูตร (f² = 0.02 คือผลขนาดเล็ก, 14 ตัวแปรต้น)</span>
+      <span class="muted">อ่าน: ที่ 440 คน ถ้าผลจริงคือ OR 1.5 จะตรวจพบ H1a ราว 79% แต่ถ้าผลจริงเล็กกว่านั้น (OR 1.3) จะพบเพียงราว 42% ส่วนคอนทราสต์ RQ3 ต่ำกว่า 0.80 ทุกขนาดที่วางแผนไว้ จึงต้องรายงานเป็นการวิเคราะห์เชิงสำรวจ</span>
+    </div>
+  </div>
+
+  <div class="rq">
+    <h2>4 · ตัวแปรที่ใช้ในสมการ</h2>
+    <div class="tblwrap"><table class="big"><thead><tr><th class="l">สัญลักษณ์</th><th class="l">ชื่อไทยในสมการ</th><th class="l">ความหมาย</th><th class="l">ข้อในแบบสอบถาม v2.0</th></tr></thead><tbody>
+      <tr><td class="l">Y</td><td class="l">เลือกผู้สมัครเครือข่าย</td><td class="l">คู่ที่ 1 เลือกผู้สมัครที่อิงเครือข่าย = 1 นโยบาย = 0</td><td class="l">34</td></tr>
+      <tr><td class="l">ConfPol, ConfNet, ConfGap</td><td class="l">ความมั่นใจ</td><td class="l">มั่นใจว่าผู้สมัครแต่ละคนทำได้จริง 0–100 · ส่วนต่าง = เครือข่าย − นโยบาย</td><td class="l">35–36</td></tr>
+      <tr><td class="l">C<sub>Recip</sub>, C<sub>Cond</sub>, C<sub>Certain</sub></td><td class="l">เลือกในคู่ 2–4</td><td class="l">คู่ที่เปลี่ยนทีละคุณลักษณะ: เคยช่วยมาก่อน · ช่วยเฉพาะคนที่สนับสนุน · โอกาสสำเร็จ 9 ใน 10 กับ 5 ใน 10</td><td class="l">40–42</td></tr>
+      <tr><td class="l">zP, zC, zI</td><td class="l">ผู้มีอำนาจ, โชคชะตา, ตนเอง</td><td class="l">มาตรวัด IPC ของ Levenson ด้านละ 8 ข้อ แปลงเป็นคะแนนมาตรฐาน</td><td class="l">47–70</td></tr>
+      <tr><td class="l">zPD</td><td class="l">การพึ่งพาทางการเมือง</td><td class="l">รับรู้ว่าต้องพึ่งเส้นสายทางการเมือง 4 ข้อ (ข้อ 74 กลับคะแนน)</td><td class="l">71–74</td></tr>
+      <tr><td class="l">zPrec</td><td class="l">ความเปราะบาง</td><td class="l">นับ 6 ภาวะ: รายได้ต่ำกว่าเส้นความยากจน รายได้ไม่แน่นอน ไม่มีหลักประกัน (ครัวเรือน/ตนเอง) หนี้นอกระบบ เจอเหตุไม่คาดฝันใน 12 เดือน</td><td class="l">9–16</td></tr>
+      <tr><td class="l">LocalGov</td><td class="l">ประเภท อปท.</td><td class="l">เทศบาลนคร / เมือง / ตำบล / อบต. ที่ผู้ตอบมีสิทธิเลือกตั้ง</td><td class="l">4</td></tr>
+      <tr><td class="l">RiskAvScore</td><td class="l">คะแนนเลือกความแน่นอน</td><td class="l">จำนวนครั้งที่เลือกตัวเลือกแน่นอน 0–3</td><td class="l">44–46</td></tr>
+      <tr><td class="l">NetRely, ActRely</td><td class="l">พึ่งผู้นำท้องถิ่น</td><td class="l">ตั้งใจพึ่งผู้นำท้องถิ่นหรือนักการเมืองเป็นทางแรก · พึ่งจริงหลังเจอเหตุไม่คาดฝัน</td><td class="l">17–18</td></tr>
+      <tr><td class="l">ServGap</td><td class="l">ส่วนต่างงานบริการพื้นที่</td><td class="l">ความสำคัญของงานบริการพื้นที่ ลบ งานในสภาของ ส.ส.</td><td class="l">21–26</td></tr>
+      <tr><td class="l">zRoleKnow</td><td class="l">ความรู้หน้าที่ ส.ส.</td><td class="l">ตอบหน้าที่ตามกฎหมายของ ส.ส. ถูก 0–5 ข้อ</td><td class="l">27–31</td></tr>
+      <tr><td class="l">X</td><td class="l">ตัวควบคุม</td><td class="l">อายุ หญิง การศึกษา กรอกเอง และตัวแปรหุ่นอำเภอ 3 ตัว: γ′X = γ₁อายุ + γ₂หญิง + γ₃การศึกษา + γ₄กรอกเอง + Σδ<sub>d</sub>อำเภอ<sub>d</sub></td><td class="l">1–3, 7</td></tr>
+    </tbody></table></div>
+    <p class="muted" style="margin:0;font-size:.86rem">ทุกสมการใช้ความคลาดเคลื่อนมาตรฐานแบบจัดกลุ่มตาม อปท. (40 กลุ่ม) รายงานผลเป็นผลส่วนเพิ่มเฉลี่ย (AME) ที่ระดับนัยสำคัญ 0.05 และวิเคราะห์ด้วย Stata ทุกสมการบอก "ความสัมพันธ์" ไม่ใช่เหตุและผล</p>
+  </div>
+
+  <div class="rq">
+    <h2>RQ1 · คนที่เชื่อว่าชีวิตถูกกำหนดโดยผู้มีอำนาจ เลือกและมั่นใจผู้สมัครเครือข่ายมากกว่าหรือไม่</h2>
+    <div class="card eqcard"><div class="tags"><span class="tag main">สมการหลัก</span><span class="tag">สมการ 1 · logit</span><span class="tag">H1a</span><span class="tag">H1b</span><span class="tag">H1c</span><span class="tag">H2</span></div>
+      <div class="eqt">ln[ P(เลือกผู้สมัครเครือข่าย) ÷ (1 − P) ] = β₀ + β₁·ผู้มีอำนาจ + β₂·โชคชะตา + β₃·ตนเอง + β₄·ความเปราะบาง + β₅·(ผู้มีอำนาจ × ความเปราะบาง) + β₆·การพึ่งพาทางการเมือง + γ′·ตัวควบคุม</div>
+      <div class="eqf">ln[P(Y=1) / (1 − P(Y=1))] = β₀ + β₁zP + β₂zC + β₃zI + β₄zPrec + β₅(zP × zPrec) + β₆zPD + γ′X</div>
+      <dl><dt>หน้าที่</dt><dd>สมการหลักของงาน ใช้ข้อมูลคู่ที่ 1 คนละ 1 แถว β₁ ตอบ RQ1 โดยตรง ส่วน β₅ และ β₆ ใช้ตอบ RQ2 จากสมการเดียวกัน</dd>
+        <dt>ค่าที่คาดหวัง</dt><dd>β₁ &gt; 0 (H1a) · β₁ &gt; β₂ ทดสอบด้วย Wald test (H1b เชิงสำรวจ) · β₆ &gt; 0 (H1c) · β₅ &gt; 0 (H2 เชิงสำรวจ อ่านจาก AME ที่ zP = −1, 0, +1 SD)</dd>
+        <dt>ตรวจซ้ำ</dt><dd>Firth logit · LPM · wild cluster bootstrap · ตัดชุดที่ไม่ผ่านคู่ที่ 5 หรือตอบเป็นกลุ่ม · ใส่ดัชนีการตอบเห็นด้วยทุกข้อ</dd></dl></div>
+    <div class="card eqcard"><div class="tags"><span class="tag">สมการ 7a–c · OLS</span><span class="tag">H1a (ส่วนความมั่นใจ)</span><span class="tag">สำรองตามคำแนะนำอาจารย์ที่ปรึกษา</span></div>
+      <div class="eqt">ความมั่นใจ<sub>j</sub> = θ₀ + θ₁·ผู้มีอำนาจ + θ₂·โชคชะตา + θ₃·ตนเอง + θ₄·ความเปราะบาง + θ₅·(ผู้มีอำนาจ × ความเปราะบาง) + θ₆·การพึ่งพาทางการเมือง + γ′·ตัวควบคุม + ε<br><span class="muted" style="font-size:.88rem">j = ผู้สมัครนโยบาย (7a), ผู้สมัครเครือข่าย (7b), ส่วนต่าง เครือข่าย − นโยบาย (7c)</span></div>
+      <div class="eqf">Conf_j = θ₀ + θ₁zP + θ₂zC + θ₃zI + θ₄zPrec + θ₅(zP × zPrec) + θ₆zPD + γ′X + ε,  j ∈ {Pol, Net, Gap}</div>
+      <dl><dt>หน้าที่</dt><dd>ตอบครึ่งหลังของ RQ1 ("มั่นใจกว่า") และเป็น<b>แบบจำลองหลักแทน logit</b> ถ้าเก็บได้ 200–433 ชุด ในโครงร่างที่ยื่น EC สมการนี้คือสมการ (2)</dd>
+        <dt>ค่าที่คาดหวัง</dt><dd>μ₁ (θ₁ ในสมการส่วนต่าง 7c) &gt; 0</dd>
+        <dt>ตรวจซ้ำ</dt><dd>fractional logit บน ความมั่นใจ ÷ 100 เพราะคะแนนถูกจำกัดที่ 0–100</dd></dl></div>
+  </div>
+
+  <div class="rq">
+    <h2>RQ2 · ความสัมพันธ์ยังอยู่ไหมเมื่อคำนึงถึงการพึ่งพาทางการเมือง และแรงขึ้นในครัวเรือนเปราะบางหรือไม่</h2>
+    <div class="card eqcard"><div class="tags"><span class="tag">สมการ 1 (β₅, β₆)</span><span class="tag">สมการ 1′ · logit</span><span class="tag">H1c</span><span class="tag">H2</span></div>
+      <div class="eqt">สมการ 1′ = สมการ 1 ที่<b>ตัด</b> β₆·การพึ่งพาทางการเมือง ออก</div>
+      <div class="eqf">ln[P(Y=1) / (1 − P(Y=1))] = β₀ + β₁zP + β₂zC + β₃zI + β₄zPrec + β₅(zP × zPrec) + γ′X</div>
+      <dl><dt>หน้าที่</dt><dd>เทียบ β₁ ระหว่างสมการ 1 กับ 1′ ว่าเปลี่ยนแค่ไหนเมื่อใส่การพึ่งพาทางการเมือง รายงานเชิงพรรณนาเท่านั้น <b>ไม่ตีความเป็นตัวแปรส่งผ่าน</b> เพราะข้อมูลเป็นภาคตัดขวาง</dd>
+        <dt>ค่าที่คาดหวัง</dt><dd>ไม่มีเครื่องหมายที่ทดสอบ ถ้า β₁ ยังเป็นบวกในทั้งสองสมการ แปลว่าความสัมพันธ์ไม่ได้มาจากการพึ่งพาทางการเมืองล้วน ๆ · ในสมการ 1: β₆ &gt; 0 (H1c), β₅ &gt; 0 (H2)</dd></dl></div>
+    <div class="card eqcard"><div class="tags"><span class="tag">สมการ 2b · OLS</span><span class="tag">H1d</span></div>
+      <div class="eqt">การพึ่งพาทางการเมือง = δ₀ + δ₁·ผู้มีอำนาจ + δ₂·โชคชะตา + δ₃·ตนเอง + δ₄·ความเปราะบาง + γ′·ตัวควบคุม + e</div>
+      <div class="eqf">zPD = δ₀ + δ₁zP + δ₂zC + δ₃zI + δ₄zPrec + γ′X + e</div>
+      <dl><dt>หน้าที่</dt><dd>ยืนยันว่าความเชื่อเรื่องผู้มีอำนาจกับการรับรู้ว่าต้องพึ่งเส้นสาย "เกี่ยวกันแต่ไม่ใช่สิ่งเดียวกัน" ถ้าสองตัวนี้คือสิ่งเดียวกัน สมการ 1 จะแยกผลไม่ออก</dd>
+        <dt>ค่าที่คาดหวัง</dt><dd>δ₁ &gt; 0 แต่ไม่สูงจนเกือบเป็นตัวเดียวกัน</dd></dl></div>
+  </div>
+
+  <div class="rq">
+    <h2>RQ3 · กลไกไหนผูกกับการเลือกเครือข่ายมากที่สุด: ตอบแทนบุญคุณ ยอมรับความช่วยเหลือแบบมีเงื่อนไข หรือชอบความแน่นอน</h2>
+    <div class="card eqcard"><div class="tags"><span class="tag">สมการ 6a–c · logit</span><span class="tag">เชิงสำรวจ</span></div>
+      <div class="eqt">ln[ P(เลือกตัวเลือกที่มีคุณลักษณะ m) ÷ (1 − P) ] = ρ₀ + ρ₁·ผู้มีอำนาจ + ρ₂·การพึ่งพาทางการเมือง + γ′·ตัวควบคุม<br><span class="muted" style="font-size:.88rem">m = ตอบแทนบุญคุณ (คู่ 2, 6a) · ช่วยแบบมีเงื่อนไข (คู่ 3, 6b) · ผลแน่นอน (คู่ 4, 6c)</span></div>
+      <div class="eqf">logit P(C_m = 1) = ρ₀ + ρ₁zP + ρ₂zPD + γ′X,  m ∈ {Recip, Cond, Certain}</div>
+      <dl><dt>หน้าที่</dt><dd>คู่ 2–4 เปลี่ยนทีละคุณลักษณะ จึงแยกกลไกที่คู่ 1 แยกไม่ได้ ดูทีละคู่ว่าความเชื่อเรื่องผู้มีอำนาจผูกกับกลไกไหน</dd>
+        <dt>ค่าที่คาดหวัง</dt><dd>ρ₁ &gt; 0 ในคู่ที่เป็นกลไกจริง</dd></dl></div>
+    <div class="card eqcard"><div class="tags"><span class="tag">สมการ 6L · logit ซ้อนแถว</span><span class="tag">คอนทราสต์ที่กำหนดล่วงหน้า 1 ตัว</span></div>
+      <div class="eqt">ln[ P(เลือกตัวเลือก 1 ในคู่ m) ÷ (1 − P) ] = α<sub>m</sub> + ψ<sub>m</sub>·ผู้มีอำนาจ + γ′·ตัวควบคุม<br><span class="muted" style="font-size:.88rem">m = คู่ 1–4 · คนละ 4 แถว · ค่าคงที่และความชันแยกตามคู่</span></div>
+      <div class="eqf">logit P(Y_im = 1) = α_m + ψ_m zP_i + γ′X_i,  m = 1…4;  ทดสอบ ψ₂ − ψ₄</div>
+      <dl><dt>หน้าที่</dt><dd>เทียบความชันระหว่างคู่ในแบบจำลองเดียว เพื่อตอบว่ากลไกไหน "มากที่สุด" ตัวที่ล็อกไว้ล่วงหน้าคือ ψ₂ − ψ₄ (ตอบแทนบุญคุณ ลบ ความแน่นอน) คู่อื่นปรับด้วย Holm</dd>
+        <dt>ค่าที่คาดหวัง</dt><dd>ทดสอบสองทาง ถ้า ψ₂ − ψ₄ &gt; 0 แปลว่าการตอบแทนบุญคุณผูกกับความเชื่อเรื่องผู้มีอำนาจแน่นกว่าความชอบความแน่นอน · กำลังทดสอบต่ำ (ดูกราฟ) จึงรายงานเป็นเชิงสำรวจ</dd></dl></div>
+  </div>
+
+  <div class="rq">
+    <h2>คำถามย่อย (SRQ) · ที่มาและผลข้างเคียงของความเชื่อเรื่องผู้มีอำนาจ</h2>
+    <div class="card eqcard"><div class="tags"><span class="tag">SRQ1</span><span class="tag">สมการ 2 · OLS</span><span class="tag">H3</span></div>
+      <div class="eqt">ผู้มีอำนาจ = α₀ + α₁·ความเปราะบาง + Σ α<sub>k</sub>·ประเภท อปท.<sub>k</sub> + γ′·ตัวควบคุม + e</div>
+      <div class="eqf">zP = α₀ + α₁zPrec + Σ_k α_k LocalGov_k + γ′X + e</div>
+      <dl><dt>หน้าที่</dt><dd>หาว่าใครมีแนวโน้มเชื่อเรื่องผู้มีอำนาจมากกว่า (ที่มาของ zP)</dd>
+        <dt>ค่าที่คาดหวัง</dt><dd>α₁ &gt; 0 · พื้นที่ระดับตำบล (ทต./อบต.) สูงกว่าเทศบาลนคร</dd></dl></div>
+    <div class="card eqcard"><div class="tags"><span class="tag">SRQ2</span><span class="tag">สมการ 3 · ordered logit</span><span class="tag">H4</span></div>
+      <div class="eqt">คะแนนเลือกความแน่นอน* = λ₁·ผู้มีอำนาจ + λ₂·โชคชะตา + λ₃·ตนเอง + γ′·ตัวควบคุม + u  (คะแนน 0–3)</div>
+      <div class="eqf">RiskAvScore* = λ₁zP + λ₂zC + λ₃zI + γ′X + u</div>
+      <dl><dt>หน้าที่</dt><dd>ดูว่าความเชื่อเรื่องผู้มีอำนาจไปด้วยกันกับการเลือกผลที่แน่นอนแทนผลที่มากกว่าแต่ไม่แน่นอนหรือไม่ ไม่ใส่ในสมการ 1 เพราะอาจอยู่บนเส้นทางระหว่าง zP กับการเลือก</dd>
+        <dt>ค่าที่คาดหวัง</dt><dd>λ₁ &gt; 0</dd></dl></div>
+    <div class="card eqcard"><div class="tags"><span class="tag">SRQ3</span><span class="tag">สมการ 4, 4b · logit</span><span class="tag">H5, H5b</span></div>
+      <div class="eqt">ln[ P(พึ่งผู้นำท้องถิ่นเป็นทางแรก) ÷ (1 − P) ] = η₀ + η₁·ผู้มีอำนาจ + η₂·โชคชะตา + η₃·ตนเอง + γ′·ตัวควบคุม<br><span class="muted" style="font-size:.88rem">4 = ตั้งใจจะพึ่ง (ทุกคน) · 4b = พึ่งจริงหลังเจอเหตุไม่คาดฝัน (เฉพาะครัวเรือนที่เจอ เชิงสำรวจ)</span></div>
+      <div class="eqf">logit P(NetRely = 1) = η₀ + η₁zP + η₂zC + η₃zI + γ′X;  4b: ActRely</div>
+      <dl><dt>หน้าที่</dt><dd>ดูว่าความเชื่อเรื่องผู้มีอำนาจแสดงออกเป็นพฤติกรรมพึ่งพาเครือข่ายในชีวิตจริงหรือไม่</dd>
+        <dt>ค่าที่คาดหวัง</dt><dd>η₁ &gt; 0</dd></dl></div>
+    <div class="card eqcard"><div class="tags"><span class="tag">SRQ4</span><span class="tag">สมการ 5 · OLS</span><span class="tag">H6</span></div>
+      <div class="eqt">ส่วนต่างงานบริการพื้นที่ = κ₀ + κ₁·ผู้มีอำนาจ + κ₂·ความรู้หน้าที่ ส.ส. + γ′·ตัวควบคุม + e</div>
+      <div class="eqf">ServGap = κ₀ + κ₁zP + κ₂zRoleKnow + γ′X + e</div>
+      <dl><dt>หน้าที่</dt><dd>ดูว่าคนที่เชื่อเรื่องผู้มีอำนาจคาดหวังให้ ส.ส. ทำงานบริการพื้นที่มากกว่างานในสภาหรือไม่ โดยคุมความรู้เรื่องหน้าที่ ส.ส. ไว้ เพื่อแยก "ไม่รู้หน้าที่" ออกจาก "รู้แต่ให้ความสำคัญต่างกัน"</dd>
+        <dt>ค่าที่คาดหวัง</dt><dd>κ₁ &gt; 0</dd></dl></div>
+  </div>
+
+  <div class="rq">
+    <h2>RQ4 · ผู้มีสิทธิเลือกตั้งอธิบายการเลือกของตัวเองอย่างไร</h2>
+    <p><b>ไม่มีสมการ</b> ใช้การสัมภาษณ์เชิงลึกทางโทรศัพท์ในระยะที่ 2 หลังประมาณสมการเสร็จแล้ว 12–20 คน จากผู้ที่ยินยอมให้ติดต่อ (ข้อ 75) แบ่ง 4 กลุ่มตามการเลือกในคู่ที่ 1 × คะแนน zP สูงหรือต่ำกว่ามัธยฐาน เพื่อให้ได้ยินทั้งกรณีที่ตรงและขัดกับสมมติฐาน วิเคราะห์แบบแก่นสาระ (Braun &amp; Clarke, 2006)</p>
+  </div>
+</div>
+</section>
 </main>
 
 <footer>
   <span>ประชากร: กรมการปกครอง สถิติประชากรแยกรายอายุ ธันวาคม 2568 (ไฟล์ 6812cc31) เทศบาลที่มีสำนักทะเบียนของตนเอง (ทน.บุรีรัมย์ ทต.สตึก ทต.บ้านด่าน ทต.แคนดง) ใช้ตัวเลขของเทศบาลโดยตรง อปท. อื่นใช้ตัวเลขของตำบล Gen Z = อายุ 18–29 ปี ณ ธ.ค. 2568 (เกิด พ.ศ. 2539–2550)</span>
-  <span>ขนาดตัวอย่าง: ต่ำสุด Cochran ที่ความเชื่อมั่น 90% (271) · กลาง Cochran ที่ 95% (384) ตรงกับตาราง Krejcie & Morgan · สูงสุด จากการจำลองกำลังการทดสอบ (800) ทุกระดับเก็บเผื่อ 10% · การปัดเศษใช้วิธีเศษเหลือมากที่สุด ตัวเลขรวมจึงตรงทุกระดับ</span>
+  <span>ขนาดตัวอย่าง: ขั้นต่ำ 440 จากเกณฑ์ 10 เหตุการณ์ต่อพารามิเตอร์ของ logit (434) ซึ่งสูงกว่า Cochran ที่ 95% (384) · เป้าหมาย 600 จากการจำลองกำลังการทดสอบ · สำรอง 200 ใช้ OLS แทน logit (รายละเอียดในแท็บ "ตัวอย่างและสมการ") · การปัดเศษใช้วิธีเศษเหลือมากที่สุด ตัวเลขรวมจึงตรงทุกระดับ</span>
   <span>ขอบเขต: ตำบลและอำเภอจากชุดข้อมูลขอบเขตการปกครอง ไม่มีขอบเขตเทศบาลจริง ระยะทางวัดเป็นเส้นตรงจากจุดกลางตำบลถึงจุดกลาง ต.ในเมือง ลิงก์สถานที่เปิดการค้นหาใน Google Maps ให้ตรวจสอบก่อนลงพื้นที่ทุกครั้ง</span>
   <span>ตัวนับร่วมเก็บเฉพาะ อปท. ช่องโควตา ประเภทสถานที่ และวันที่ ไม่เก็บชื่อ เบอร์โทร หรือคำตอบใด ๆ ของผู้ตอบ</span>
 </footer>
@@ -369,9 +540,9 @@ const CELLS = [{k:0,g:"Gen Z",s:"ชาย"},{k:1,g:"Gen Z",s:"หญิง"},{k
 const VENUES = [{k:"market",l:"ตลาด/จุดคนเยอะ"},{k:"cafe",l:"สภากาแฟ"},{k:"door",l:"เคาะบ้าน"},{k:"online",l:"QR ตอบเองต่อหน้า"}];
 const DIST = [{d:"เมืองบุรีรัมย์",seat:"ทน.บุรีรัมย์",short:"เมือง"},{d:"สตึก",seat:"ทต.สตึก",short:"สตึก"},{d:"บ้านด่าน",seat:"ทต.บ้านด่าน",short:"บ้านด่าน"},{d:"แคนดง",seat:"ทต.แคนดง",short:"แคนดง"}];
 const TIERS = [
-  {k:"min",label:"ต่ำสุด",use:271,collect:300,basis:"Cochran ความเชื่อมั่น 90%",note:"ใช้เมื่อเก็บไม่ทัน"},
-  {k:"mid",label:"กลาง",use:400,collect:440,basis:"Cochran / Krejcie & Morgan 95%",note:"แผนหลัก"},
-  {k:"max",label:"สูงสุด",use:800,collect:880,basis:"power ≥ 0.80 สำหรับ H1a, H3–H6 (H1b ต้องการราว 860)",note:"คุ้มที่สุดถ้ามีเวลาและคน"}];
+  {k:"min",label:"สำรอง",use:200,collect:200,model:"OLS + LPM",basis:"กรณีเลวร้ายสุด เปลี่ยนแบบจำลองหลักเป็น OLS บนความมั่นใจ",note:"ใช้เมื่อเก็บไม่ถึง 434"},
+  {k:"mid",label:"ขั้นต่ำ",use:434,collect:440,model:"logit",basis:"10 เหตุการณ์ต่อพารามิเตอร์ (13 พารามิเตอร์ อัตราเลือก 30%) · Cochran 95% = 384",note:"แผนหลัก"},
+  {k:"max",label:"เป้าหมาย",use:434,collect:600,model:"logit",basis:"กำลังทดสอบ H1a ราว 0.90 (OR 1.5)",note:"ถ้ามีเวลาและคน"}];
 const MIXW = {nk:[.60,.30,.10],mg:[.50,.35,.15],tb:[.35,.40,.25],ao:[.15,.40,.45]};
 const FULL = {ทน:"เทศบาลนคร",ทม:"เทศบาลเมือง",ทต:"เทศบาลตำบล",อบต:"องค์การบริหารส่วนตำบล"};
 const LG = Object.fromEntries(DATA.lgus.map(o=>[o.n,o]));
@@ -561,7 +732,7 @@ function renderCrumbs(){ const c=document.getElementById("crumbs"); c.innerHTML=
 const panel=document.getElementById("panel");
 const cellLine = q => `Gen Z ช ${q[0]} ญ ${q[1]} · Gen อื่น ช ${q[2]} ญ ${q[3]}`;
 function tierCard(){ const T=TIERS.find(t=>t.k===tier);
-  return h("div",{class:"card"},`<span class="eyebrow">ขนาดตัวอย่างที่เลือก</span><div class="kv"><span>ระดับ <b>${T.label}</b></span><span>เก็บจริง <b>${fmt(T.collect)}</b></span><span>ใช้วิเคราะห์ได้ไม่น้อยกว่า <b>${fmt(T.use)}</b></span></div><p class="muted" style="font-size:.86rem">${T.basis} · เปลี่ยนระดับได้ที่ด้านบน ตัวเลขทุกจุดในหน้านี้จะคำนวณใหม่ตามสัดส่วน</p>`); }
+  return h("div",{class:"card"},`<span class="eyebrow">ขนาดตัวอย่างที่เลือก</span><div class="kv"><span>ระดับ <b>${T.label}</b></span><span>เก็บจริง <b>${fmt(T.collect)}</b></span><span>ใช้ ${T.model} ได้เมื่อมีไม่น้อยกว่า <b>${fmt(T.use)}</b></span></div><p class="muted" style="font-size:.86rem">${T.basis} · เปลี่ยนระดับได้ที่ด้านบน ตัวเลขทุกจุดในหน้านี้จะคำนวณใหม่ตามสัดส่วน</p>`); }
 function overviewPanel(){
   panel.innerHTML="";
   panel.appendChild(h("div",{class:"card hint"},`<h3>แตะอำเภอบนแผนที่เพื่อดูภาพรวม แล้วแตะตำบลเพื่อดู อปท.</h3><p>โควตาหลักอยู่ที่ระดับอำเภอ ตัวเลขราย อปท. เป็นการกระจายตามสัดส่วนเพื่อให้ทุกประเภท อปท. มีผู้ตอบ ลากแผนที่เพื่อเลื่อน และหมุนล้อเมาส์หรือถ่างนิ้วเพื่อซูม</p>`));
@@ -663,7 +834,7 @@ function renderTierTable(){
     TIERS.map(t=>{ const a=ALLOC[t.k].dist[x.d]; return `<td class="num"><b>${a.n}</b></td><td class="num">${a.q[0]} / ${a.q[1]}</td><td class="num">${a.q[2]} / ${a.q[3]}</td>`; }).join("")+`</tr>`).join("");
   const tot=TIERS.map(t=>{ const q=[0,1,2,3].map(i=>DD.reduce((s,x)=>s+ALLOC[t.k].dist[x.d].q[i],0)); return `<td class="num"><b>${t.collect}</b></td><td class="num">${q[0]} / ${q[1]}</td><td class="num">${q[2]} / ${q[3]}</td>`; }).join("");
   rows+=`<tr class="grand"><td class="l">รวม</td><td class="num">${fmt(TOTAL_ADULT)}</td><td class="num">100%</td>${tot}</tr>`;
-  rows+=`<tr><td class="l muted" colspan="3">ใช้วิเคราะห์ได้ไม่น้อยกว่า</td>`+TIERS.map(t=>`<td class="num muted" colspan="3" style="text-align:center">${t.use} · ${t.basis}</td>`).join("")+`</tr>`;
+  rows+=`<tr><td class="l muted" colspan="3">แบบจำลองหลัก · ใช้ได้เมื่อมีไม่น้อยกว่า</td>`+TIERS.map(t=>`<td class="num muted" colspan="3" style="text-align:center">${t.model} · ${t.use}</td>`).join("")+`</tr>`;
   T.innerHTML=hd+rows+`</tbody>`;
 }
 function renderTable(){
@@ -731,13 +902,13 @@ function renderMethod(){
   <div><span class="eyebrow">หลักการ</span><h2>โควตาระดับอำเภอ บันทึก อปท. ของผู้ตอบทุกคน</h2></div>
   <p>ตัวอย่างแบ่งตามสัดส่วนประชากรของ 4 อำเภอก่อน แล้วแบ่งในแต่ละอำเภอเป็น 4 ช่อง (Gen Z / Gen อื่น × ชาย / หญิง) ช่องระดับอำเภอคือ<b>โควตาหลัก</b>ที่ต้องเก็บให้ครบ ภายในอำเภอให้กระจายไปหลาย อปท. ทั้งเทศบาลและ อบต. เพื่อให้มีผู้ตอบจากทุกประเภท อปท. (ประเภท อปท. ใช้เป็นตัวแปรในการวิเคราะห์ ไม่ใช่โควตา) เป้าราย อปท. ในแผนที่เป็นแนวทางเท่านั้น ไม่ต้องตามให้เป๊ะ</p>
   <p class="note"><b>กฎข้อเดียวที่ห้ามพลาด:</b> นับโควตาตามอำเภอและ อปท. ที่ผู้ตอบ<u>มีสิทธิเลือกตั้ง</u> (ข้อ 4 ในแบบสอบถาม) ไม่ใช่ตามสถานที่ที่สัมภาษณ์ คนที่มาตลาดในตัวอำเภออาจมาจาก อบต. รอบ ๆ ถ้าช่องของอำเภอนั้นยังว่างก็นับเข้าได้ และบันทึก อปท. ของเขาตามจริง</p>
-  <div><h2>ขนาดตัวอย่าง 3 ระดับ</h2><p class="muted" style="margin-top:4px">ใช้สูตร Cochran เป็นหลัก ตอนนี้เลือกระดับ${Tt.label}อยู่ เปลี่ยนได้ที่ด้านบนของหน้า</p></div>
-  <div class="tblwrap"><table class="big"><thead><tr><th class="l">ระดับ</th><th>เก็บจริง</th><th>ใช้วิเคราะห์ได้</th><th class="l">เกณฑ์</th><th class="l">ใช้เมื่อ</th></tr></thead><tbody>
-   <tr><td class="l"><b>ต่ำสุด</b></td><td class="num">300</td><td class="num">≥ 271</td><td class="l">Cochran ความเชื่อมั่น 90%</td><td class="l">เก็บไม่ทันตามกำหนด · H4/H5/H1b เป็นการวิเคราะห์เชิงสำรวจ · ใช้ Firth logit</td></tr>
-   <tr><td class="l"><b>กลาง</b></td><td class="num">440</td><td class="num">≥ 400</td><td class="l">Cochran 95% (384) = Krejcie & Morgan</td><td class="l">แผนหลัก · H1a, H3, H6 power ≥ 0.96</td></tr>
-   <tr><td class="l"><b>สูงสุด</b></td><td class="num">880</td><td class="num">≥ 800</td><td class="l">จำลองกำลังการทดสอบ</td><td class="l">ทุกสมมติฐานยกเว้น H2 มี power ≥ 0.80 (H1b แบบทางเดียว)</td></tr>
+  <div><h2>ขนาดตัวอย่าง 3 ระดับ</h2><p class="muted" style="margin-top:4px">ตอนนี้เลือกระดับ${Tt.label}อยู่ เปลี่ยนได้ที่ด้านบนของหน้า ที่มาของตัวเลขและกราฟกำลังทดสอบอยู่ในแท็บ "ตัวอย่างและสมการ"</p></div>
+  <div class="tblwrap"><table class="big"><thead><tr><th class="l">ระดับ</th><th>เก็บ</th><th class="l">แบบจำลองหลัก</th><th class="l">ใช้เมื่อ</th></tr></thead><tbody>
+   <tr><td class="l"><b>ขั้นต่ำ</b></td><td class="num">440</td><td class="l">logit (สมการ 1)</td><td class="l">แผนหลัก · ต้องมีอย่างน้อย 434 ชุดที่ใช้ได้</td></tr>
+   <tr><td class="l"><b>เป้าหมาย</b></td><td class="num">600</td><td class="l">logit (สมการ 1)</td><td class="l">ถ้ามีเวลาและคน · กำลังทดสอบ H1a ราว 0.90</td></tr>
+   <tr><td class="l"><b>สำรอง</b></td><td class="num">200</td><td class="l">OLS บนความมั่นใจ + LPM</td><td class="l">เก็บได้ 200–433 · ต่ำกว่า 200 รายงานเชิงพรรณนาและเชิงคุณภาพ</td></tr>
   </tbody></table></div>
-  <p class="note info">EC อนุมัติจำนวนผู้เข้าร่วมเป็นเพดาน ถ้ามีโอกาสเก็บถึง 880 ต้องขอเพดานนั้นตั้งแต่ยื่น</p>
+  <p class="note">หน่วยงานเดียวกัน (เช่น โรงเรียน หน่วยราชการ) เก็บได้ไม่เกิน 3 คน และรวมทุกหน่วยงานไม่เกิน 10% ของโควตาอำเภอ เก็บส่วนใหญ่ที่ตลาด หมู่บ้าน และพื้นที่เกษตร</p>
   <div><h2>ข้อคัดกรองในแบบสอบถาม</h2><p class="muted" style="margin-top:4px">ถามก่อนเริ่มส่วนอื่น</p></div>
   <div class="script">
     <span><b>ข้อ 1 ปีเกิด</b> · เกิดหลัง 8 ก.พ. 2551 ยุติ · พ.ศ. 2539–2550 = Gen Z · ก่อน 2539 = Gen อื่น</span>
@@ -804,12 +975,54 @@ function renderPlan(){
 }
 ["p-enum","p-nk","p-mg","p-tb","p-ao"].forEach(id=>document.getElementById(id).addEventListener("input",renderPlan));
 
+/* ---------- model tab: power curves from the simulation (1,000 reps each; OLS analytic) ---------- */
+const PW_N=[200,300,440,600,800];
+const PW=[
+  {k:"s1",l:"H1a คู่ที่ 1 · OR 1.5",d:"H1a · OR 1.5",v:[.460,.587,.791,.905,.963]},
+  {k:"s2",l:"H1a คู่ที่ 1 · OR 1.3",d:"H1a · OR 1.3",v:[.217,.311,.418,.546,.693]},
+  {k:"s3",l:"RQ3 คอนทราสต์ คู่ 2 − คู่ 4 · OR 1.5",d:"RQ3 คอนทราสต์",v:[.316,.447,.582,.696,.816]},
+  {k:"s4",l:"OLS ส่วนต่างความมั่นใจ · f² 0.02",d:"OLS ความมั่นใจ",v:[.512,.685,.841,.933,.979]}];
+let pwDone=false;
+function renderPower(){ if(pwDone) return; pwDone=true;
+  const W=640,H=320,m={l:44,r:16,t:16,b:40}, iw=W-m.l-m.r, ih=H-m.t-m.b;
+  const X=n=>m.l+(n-200)/600*iw, Y=v=>m.t+(1-v)*ih;
+  const box=document.getElementById("pwchart"); box.innerHTML="";
+  const svg=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img","aria-label":"กราฟกำลังทดสอบตามขนาดตัวอย่าง 200 ถึง 800 คน 4 เส้น ดูตัวเลขในตารางด้านล่าง"},box);
+  [0,.2,.4,.6,.8,1].forEach(v=>{ el("line",{x1:m.l,x2:W-m.r,y1:Y(v),y2:Y(v),stroke:"var(--line)","stroke-width":1},svg);
+    const t=el("text",{x:m.l-8,y:Y(v)+4,"text-anchor":"end","font-size":11,fill:"var(--muted)","font-family":"var(--f-mono)"},svg); t.textContent=v.toFixed(1); });
+  PW_N.forEach(n=>{ const t=el("text",{x:X(n),y:H-m.b+18,"text-anchor":"middle","font-size":11,fill:"var(--muted)","font-family":"var(--f-mono)"},svg); t.textContent=n; });
+  const xl=el("text",{x:m.l+iw/2,y:H-4,"text-anchor":"middle","font-size":11,fill:"var(--muted)"},svg); xl.textContent="จำนวนชุดที่ใช้ได้ (คน)";
+  [[200,"สำรอง"],[440,"ขั้นต่ำ"],[600,"เป้าหมาย"]].forEach(([n,l])=>{ el("line",{x1:X(n),x2:X(n),y1:m.t,y2:m.t+ih,stroke:"var(--line2)","stroke-width":1,"stroke-dasharray":"2 4"},svg);
+    const t=el("text",{x:X(n)+4,y:m.t+11,"font-size":10.5,fill:"var(--muted)"},svg); t.textContent=l; });
+  el("line",{x1:m.l,x2:W-m.r,y1:Y(.8),y2:Y(.8),stroke:"var(--ink)","stroke-width":1,"stroke-dasharray":"5 4",opacity:.55},svg);
+  const t8=el("text",{x:m.l+4,y:Y(.8)-5,"font-size":10.5,fill:"var(--muted)"},svg); t8.textContent="0.80";
+  PW.forEach(s=>{ el("path",{d:s.v.map((v,i)=>(i?"L":"M")+X(PW_N[i]).toFixed(1)+","+Y(v).toFixed(1)).join(""),fill:"none",stroke:`var(--${s.k})`,"stroke-width":2,"stroke-linejoin":"round","stroke-linecap":"round"},svg);
+    s.v.forEach((v,i)=>el("circle",{cx:X(PW_N[i]),cy:Y(v),r:4,fill:`var(--${s.k})`,stroke:"var(--surface)","stroke-width":2},svg)); });
+  // direct labels on the 200–300 segment, above each line (text in ink, not series colour)
+  PW.forEach(s=>{ const y=Y((s.v[0]+s.v[1])/2)-9; const t=el("text",{x:X(250),y,"text-anchor":"middle","font-size":11,"font-weight":600,fill:"var(--ink)",stroke:"var(--surface)","stroke-width":4,"paint-order":"stroke","stroke-linejoin":"round"},svg); t.textContent=s.d; });
+  // hover: snap to nearest planned n
+  const cross=el("line",{y1:m.t,y2:m.t+ih,stroke:"var(--ink)","stroke-width":1,opacity:0},svg);
+  const tip=h("div",{class:"pwtip",hidden:""}); box.appendChild(tip);
+  const hit=el("rect",{x:m.l,y:m.t,width:iw,height:ih,fill:"transparent"},svg);
+  const move=e=>{ const r=svg.getBoundingClientRect(), px=(e.clientX-r.left)/r.width*W;
+    let i=0; PW_N.forEach((n,j)=>{ if(Math.abs(X(n)-px)<Math.abs(X(PW_N[i])-px)) i=j; });
+    cross.setAttribute("x1",X(PW_N[i])); cross.setAttribute("x2",X(PW_N[i])); cross.setAttribute("opacity",.35);
+    tip.innerHTML=`<b style="margin:0 0 2px;font-family:var(--f-display)">${PW_N[i]} คน</b>`+PW.slice().sort((a,b)=>b.v[i]-a.v[i]).map(s=>`<span><i style="background:var(--${s.k})"></i>${s.l}<b>${s.v[i].toFixed(2)}</b></span>`).join("");
+    tip.hidden=false; const bx=box.getBoundingClientRect(), x=e.clientX-bx.left, tw=tip.offsetWidth;
+    tip.style.left=Math.min(Math.max(8,x+14>bx.width-tw-8?x-tw-14:x+14),bx.width-tw-8)+"px"; tip.style.top="12px"; };
+  hit.addEventListener("pointermove",move); hit.addEventListener("pointerdown",move);
+  hit.addEventListener("pointerleave",()=>{ tip.hidden=true; cross.setAttribute("opacity",0); });
+  document.getElementById("pwlegend").innerHTML=PW.map(s=>`<span><i style="background:var(--${s.k})"></i>${s.l}</span>`).join("");
+  document.getElementById("pwtable").innerHTML=`<thead><tr><th class="l">การทดสอบ</th>${PW_N.map(n=>`<th>${n}</th>`).join("")}</tr></thead><tbody>`+
+    PW.map(s=>`<tr><td class="l">${s.l}</td>${s.v.map(v=>`<td class="num"${v>=.8?' style="font-weight:600"':""}>${v.toFixed(2)}</td>`).join("")}</tr>`).join("")+`</tbody>`;
+}
+
 /* ---------- views ---------- */
-const VIEWS=["map","quota","split","method","plan"];
+const VIEWS=["map","quota","split","method","plan","model"];
 function showView(v){ if(!VIEWS.includes(v)) v="map";
   VIEWS.forEach(x=>document.getElementById("v-"+x).hidden = x!==v);
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.v===v));
-  if(v==="split") renderSplit(); if(v==="plan") renderPlan(); if(v==="map") requestAnimationFrame(fitAspect); }
+  if(v==="split") renderSplit(); if(v==="plan") renderPlan(); if(v==="model") renderPower(); if(v==="map") requestAnimationFrame(fitAspect); }
 document.querySelectorAll("nav.tabs button").forEach(b=>b.addEventListener("click",()=>showView(b.dataset.v)));
 
 /* ---------- toast & db ---------- */
