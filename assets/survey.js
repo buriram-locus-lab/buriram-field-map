@@ -1,4 +1,5 @@
-/* Web survey (questionnaire v1.9). Demo mode saves nothing; live mode posts one JSON record to CONFIG.endpoint after EC approval.
+/* Web survey (questionnaire v2.0: IPC 24 items, 76 printed items). Demo mode saves nothing; pilot and live post one JSON record to CONFIG.endpoint.
+   No EC review: undergraduate thesis, not for publication, collected on the advisor's instruction (18 Nov 2569).
    Every form is completed in front of a collector: read aloud (1), keyed from paper (0), or on the respondent's phone from a collector's QR (3).
    Remote online answering (mode 2) is closed. Knowledge items 29–33 carry no answer key here: scoring happens only in analysis.
    Items may carry `when` (shown only if the rule holds; hidden answers are dropped) and `auto` (value recorded while hidden). */
@@ -10,13 +11,13 @@
      test  → records saved but marked test = 1 · pilot → field pilot (Stage 1.2), kept in separate sheets · live → main survey */
   let PHASE = (() => { try { const v = JSON.parse(localStorage.getItem("bfm.phase")); if (["test", "pilot", "live"].includes(v)) return v; } catch (e) {} return CONFIG.test ? "test" : "live"; })();
   const isTestRun = () => PHASE === "test", isPilot = () => PHASE === "pilot";
-  const PH_LABEL = { test: "โหมดทดสอบระบบ", pilot: "โหมดนำร่อง (ขั้น 1.2 · อ.ชุมพลบุรี)", live: "เก็บข้อมูลจริง (ขั้น 1.3)" };
+  const PH_LABEL = { test: "โหมดทดสอบระบบ", pilot: "โหมดนำร่อง (ขั้น 1.2 · บ้านโนนม่วง จ.ขอนแก่น)", live: "เก็บข้อมูลจริง (ขั้น 1.3)" };
   const store = {
     get(k, d) { try { const v = localStorage.getItem("bfm." + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem("bfm." + k, JSON.stringify(v)); } catch (e) {} },
   };
   const S = window.SURVEY;
-  const DN = n => (S.dn && S.dn[n]) || n;   // printed item number (v1.9 renumbered after cuts); internal keys keep the v1.8 numbers
+  const DN = n => (S.dn && S.dn[n]) || n;   // printed item number; internal keys keep the v1.8 numbers, IPC items are L1–L24 (Levenson order, printed 47–70)
   // a one-time QR from a collector: ?q=<invite>. The respondent answers on their own phone; the code carries that collector's number.
   const INV = new URLSearchParams(location.search).get("q");
   let invInfo = null;          // {enumerator, venue} once checked
@@ -151,8 +152,8 @@
       }
       case "residence": {
         const d = st.ans["3"] || {};
-        if (isPilot()) return `<div class="opts row"><label class="opt"><input type="radio" name="res_a" value="ชุมพลบุรี" ${d.a === "ชุมพลบุรี" ? "checked" : ""}><span class="box" aria-hidden="true"></span><span class="ot">อ.ชุมพลบุรี จ.สุรินทร์</span></label></div>
-          <p class="small muted">ช่วงนำร่อง: ผู้ตอบทุกคนต้องมีชื่อในทะเบียนบ้านและอาศัยใน อ.ชุมพลบุรี</p>
+        if (isPilot()) return `<div class="opts row"><label class="opt"><input type="radio" name="res_a" value="โนนม่วง" ${d.a === "โนนม่วง" ? "checked" : ""}><span class="box" aria-hidden="true"></span><span class="ot">บ้านโนนม่วง จ.ขอนแก่น</span></label></div>
+          <p class="small muted">ช่วงนำร่อง: เก็บที่บ้านโนนม่วง จ.ขอนแก่น พิมพ์ชื่อตำบลที่ผู้ตอบอาศัยอยู่</p>
           <div class="grid2"><label class="fld"><span>ตำบล</span><input class="txt" name="res_t" value="${esc(d.t || "")}" ${d.a ? "" : "disabled"}></label>
             <label class="fld"><span>หมู่ที่หรือชื่อชุมชน <em>(ไม่บังคับ)</em></span><input class="txt" name="res_m" value="${esc(d.m || "")}"></label></div>`;
         const ds = ["เมืองบุรีรัมย์", "สตึก", "บ้านด่าน", "แคนดง"];
@@ -190,7 +191,7 @@
           </div>`;
       }
       case "ipc": {
-        const L = [[-3, "ไม่เห็นด้วยมาก"], [-2, "ไม่เห็นด้วยปานกลาง"], [-1, "ไม่เห็นด้วยเล็กน้อย"], [1, "เห็นด้วยเล็กน้อย"], [2, "เห็นด้วยปานกลาง"], [3, "เห็นด้วยมาก"]];   // same labels as the paper form and the read-aloud instruction
+        const L = [[-3, "ไม่เห็นด้วยอย่างมาก"], [-2, "ไม่เห็นด้วยปานกลาง"], [-1, "ไม่เห็นด้วยเล็กน้อย"], [1, "เห็นด้วยเล็กน้อย"], [2, "เห็นด้วยปานกลาง"], [3, "เห็นด้วยอย่างมาก"]];   // same labels as the paper form and the read-aloud instruction
         return `<div class="ipc" role="radiogroup">${L.map(([c, t]) => `<label class="ip${c < 0 ? " neg" : " pos"}"><input type="radio" name="q_${it.n}" value="${c}" ${st.ans[it.n] === c ? "checked" : ""}><span>${t}</span></label>`).join("")}</div>`;
       }
     }
@@ -250,7 +251,7 @@
       <h2>ก่อนเริ่ม</h2>
       <div class="infogrid">
         <div><b>งานวิจัยนี้ศึกษาอะไร</b><p>วิธีที่ผู้มีสิทธิเลือกตั้งในบุรีรัมย์ชั่งน้ำหนักระหว่างผู้สมัครที่ช่วยเหลือเป็นรายครัวเรือน กับผู้สมัครที่เสนอนโยบาย และความเชื่อของแต่ละคนว่าชีวิตถูกกำหนดโดยอะไร</p></div>
-        <div><b>ท่านจะต้องทำอะไร</b><p>ตอบคำถาม 7 ส่วน รวมการเลือกผู้สมัครสมมติ 5 คู่ ใช้เวลาประมาณ 25–30 นาที</p></div>
+        <div><b>ท่านจะต้องทำอะไร</b><p>ตอบคำถาม 7 ส่วน รวมการเลือกผู้สมัครสมมติ 5 คู่ ใช้เวลาประมาณ 30–40 นาที</p></div>
         <div><b>สิทธิของท่าน</b><p>ไม่ต้องบอกชื่อ ข้ามข้อที่ไม่สบายใจได้ และหยุดได้ทุกเมื่อ แบบสอบถามนี้ไม่ถามว่าท่านเลือกผู้สมัครหรือพรรคใด</p></div>
         <div><b>ข้อมูลของท่าน</b><p>ใช้วิเคราะห์ในภาพรวมเท่านั้น ไม่นำเสนอรายบุคคลหรือรายหมู่บ้าน</p></div>
       </div>
@@ -564,7 +565,7 @@
       if (answered(it) || (it.type === "check" && Array.isArray(st.ans[it.n]))) continue;
       switch (it.type) {
         case "year": st.ans["1"] = 2500 + Math.floor(R() * 50); break;
-        case "residence": { if (isPilot()) { st.ans["3"] = { a: "ชุมพลบุรี", t: "ชุมพลบุรี" }; break; } const a = pick(["เมืองบุรีรัมย์", "สตึก", "บ้านด่าน", "แคนดง"]); st.ans["3"] = { a, t: pick(S.tambons.filter(t => t.a === a)).t }; break; }
+        case "residence": { if (isPilot()) { st.ans["3"] = { a: "โนนม่วง", t: "ทดสอบ" }; break; } const a = pick(["เมืองบุรีรัมย์", "สตึก", "บ้านด่าน", "แคนดง"]); st.ans["3"] = { a, t: pick(S.tambons.filter(t => t.a === a)).t }; break; }
         case "lgu": { if (isPilot()) { st.ans["4"] = pick(["pilot:tb", "pilot:ao"]); break; } const d = st.ans["3"] || {}; const L = S.lgus.filter(l => l.d === d.a && (!d.t || l.t.includes(d.t))); st.ans["4"] = L.length ? pick(L).n : "unsure"; break; }
         case "num": st.ans[it.n] = 1 + Math.floor(R() * 6); break;
         case "income": if (R() < .7) st.ans["12"] = 3000 + Math.floor(R() * 40) * 1000; else st.ans["12b"] = 1 + Math.floor(R() * 9); break;
@@ -776,21 +777,21 @@
     }
   }
 
-  /* ---------- IPC short form: 3 items per dimension, −3..+3 each, sum + 9 = 0–18.
-     Computed when at least 2 of 3 items are answered (mean × 3). Kept for the researchers only: respondents never see a score. ---------- */
+  /* ---------- IPC full form (Levenson 1981): 8 items per dimension, −3..+3 each, sum + 24 = 0–48, midpoint 24.
+     Scored when at least 6 of 8 items are answered (mean × 8, analysis plan v1.0). Kept for the researchers only: respondents never see a score. ---------- */
   function scores() {
     const s = { I: 0, P: 0, C: 0 }, n = { I: 0, P: 0, C: 0 };
     for (const it of PARTS[5].items) { const v = st.ans[it.n]; if (typeof v === "number") { s[it.dim] += v; n[it.dim]++; } }
     const out = {};
-    for (const k of ["I", "P", "C"]) out[k] = n[k] === 3 ? s[k] + 9 : n[k] === 2 ? Math.round((s[k] / 2) * 3 + 9) : null;
-    out.complete = n.I === 3 && n.P === 3 && n.C === 3;
+    for (const k of ["I", "P", "C"]) out[k] = n[k] === 8 ? s[k] + 24 : n[k] >= 6 ? Math.round((s[k] / n[k]) * 8 + 24) : null;
+    out.complete = n.I === 8 && n.P === 8 && n.C === 8;
     return out;
   }
 
   function record() {
     const sc = scores();
     return {
-      meta: { id: st.meta.id, code: null, test: DEMO || isTestRun(), phase: !DEMO && isPilot() ? "pilot" : undefined, enumerator: st.meta.enumerator, collector: st.meta.mode === 0 || st.meta.mode === 1 ? st.meta.collector : "", cdate: st.meta.cdate, collectedBE: beYear(st.meta.cdate || todayISO()), started: st.meta.started, finished: new Date().toISOString(), seconds: Math.round((performance.now() - (st.t0 || 0)) / 1000), mode: st.meta.mode, venue: st.meta.venue, design: st.meta.design, version: st.meta.version, order: st.meta.order, gsize: st.meta.mode === 3 ? "" : st.meta.group.size, gcode: st.meta.group.size > 1 ? st.meta.group.code : "", instrument: "v1.9" },
+      meta: { id: st.meta.id, code: null, test: DEMO || isTestRun(), phase: !DEMO && isPilot() ? "pilot" : undefined, enumerator: st.meta.enumerator, collector: st.meta.mode === 0 || st.meta.mode === 1 ? st.meta.collector : "", cdate: st.meta.cdate, collectedBE: beYear(st.meta.cdate || todayISO()), started: st.meta.started, finished: new Date().toISOString(), seconds: Math.round((performance.now() - (st.t0 || 0)) / 1000), mode: st.meta.mode, venue: st.meta.venue, design: st.meta.design, version: st.meta.version, order: st.meta.order, gsize: st.meta.mode === 3 ? "" : st.meta.group.size, gcode: st.meta.group.size > 1 ? st.meta.group.code : "", instrument: "v2.0" },
       answers: { ...st.ans }, text: { ...st.txt },
       conjoint: (st.cj.tasks || []).map((t, i) => ({ task: i + 1, pair: t.k, item: t.n, chosen: t.choice, ms: t.at, left: strip(t.L, t.design), right: strip(t.Rt, t.design) })),
       ipc: { I: sc.I, P: sc.P, C: sc.C, complete: sc.complete },
@@ -853,7 +854,7 @@
   function chips() {
     const el = $("#chips"); if (!el) return;
     const n = outbox().length;
-    el.innerHTML = (DEMO ? `<span class="chip warn"><i></i>โหมดตัวอย่าง · ไม่บันทึกคำตอบ</span><span class="chip">รอ EC อนุมัติก่อนเปิดเก็บจริง</span>`
+    el.innerHTML = (DEMO ? `<span class="chip warn"><i></i>โหมดตัวอย่าง · ไม่บันทึกคำตอบ</span><span class="chip">ต้องเข้าสู่ระบบผู้เก็บข้อมูลจึงจะบันทึกได้</span>`
       : isTestRun() ? `<span class="chip warn"><i></i>โหมดทดสอบระบบ · บันทึกเป็นข้อมูลทดสอบ</span>` : isPilot() ? `<span class="chip acc"><i></i>โหมดนำร่อง · เก็บแยกจากข้อมูลจริง</span>` : `<span class="chip mint"><i></i>เก็บข้อมูลจริง</span>`) +
       (n ? `<span class="chip warn">รอส่ง ${n} ชุด</span>` : "") +
       (INV ? `<span class="chip acc">ตอบผ่าน QR ของผู้เก็บข้อมูล${invInfo ? " เลข " + invInfo.enumerator : ""}</span>` : Auth.get() ? `<span class="chip">เข้าสู่ระบบ: ${esc(Auth.get().user.username)}</span>` : "");
@@ -887,9 +888,10 @@
   }
 
   let toastT;
+  const NO_EC = "ไม่ยื่น EC · วิจัยจบ ตามคำแนะนำอาจารย์ที่ปรึกษา";
   /* ---------- phase: read from the server; changed by an admin with a code ---------- */
   function phaseNote() {
-    if (isPilot()) return `<b>${PH_LABEL.pilot}</b><br><span class="small">เก็บเฉพาะผู้ที่อาศัยและมีชื่อในทะเบียนบ้าน อ.ชุมพลบุรี จ.สุรินทร์ คำตอบแยกไว้ในชีตนำร่อง ไม่นำไปทดสอบสมมติฐาน และไม่ขอเบอร์โทรสำหรับระยะที่ 2 รหัสผู้ตอบขึ้นต้นด้วย P-</span>`;
+    if (isPilot()) return `<b>${PH_LABEL.pilot}</b><br><span class="small">เก็บที่บ้านโนนม่วง จ.ขอนแก่น (16 ชุด) คำตอบแยกไว้ในชีตนำร่อง ไม่นำไปทดสอบสมมติฐาน และไม่ขอเบอร์โทรสำหรับระยะที่ 2 รหัสผู้ตอบขึ้นต้นด้วย P-</span>`;
     if (isTestRun()) return `<b>${PH_LABEL.test}</b><br><span class="small">ทุกชุดบันทึกเป็นข้อมูลทดสอบ ไม่นับเป็นข้อมูลวิจัย</span>`;
     return `<b>${PH_LABEL.live}</b><br><span class="small">คำตอบนับเป็นข้อมูลวิจัย</span>`;
   }
@@ -908,14 +910,13 @@
     const se = Auth.get();
     if (!se || se.demo || se.user.role !== "admin") { box.innerHTML = `<p class="small err" role="alert">ต้องเข้าสู่ระบบด้วยบัญชีผู้ดูแล (admin) ก่อนจึงจะเปลี่ยนโหมดได้</p>`; return; }
     if (to === PHASE) { box.innerHTML = `<p class="small">ตอนนี้อยู่ใน${PH_LABEL[to]}อยู่แล้ว</p>`; return; }
-    const what = { pilot: "เปิดเก็บข้อมูล<b>นำร่อง</b> (ขั้น 1.2 ที่ อ.ชุมพลบุรี 10–12 คน) คำตอบจะเก็บแยกในชีต “คำตอบ (นำร่อง)”", live: "เปิดเก็บข้อมูล<b>จริง</b> (ขั้น 1.3) คำตอบจะนับเป็นข้อมูลวิจัย และหยุดรับคำตอบนำร่อง", test: "กลับเป็น<b>โหมดทดสอบ</b> คำตอบจะบันทึกเป็นข้อมูลทดสอบ" }[to];
+    const what = { pilot: "เปิดเก็บข้อมูล<b>นำร่อง</b> (ขั้น 1.2 ที่บ้านโนนม่วง จ.ขอนแก่น 16 คน) คำตอบจะเก็บแยกในชีต “คำตอบ (นำร่อง)”", live: "เปิดเก็บข้อมูล<b>จริง</b> (ขั้น 1.3) คำตอบจะนับเป็นข้อมูลวิจัย และหยุดรับคำตอบนำร่อง", test: "กลับเป็น<b>โหมดทดสอบ</b> คำตอบจะบันทึกเป็นข้อมูลทดสอบ" }[to];
     box.innerHTML = `<div class="notice warn" style="margin-top:8px"><p>${what}</p>
-      ${to !== "test" ? `<label class="fld"><span>เลขที่หนังสือรับรองจริยธรรม (EC) <em>(ต้องได้รับอนุมัติก่อนเก็บข้อมูลจากคนจริง)</em></span><input class="txt" id="ecno" placeholder="เช่น HE69xxxx"></label>` : ""}
+      ${to !== "test" ? `<p class="small muted">โครงการนี้ไม่ได้ยื่น EC (วิจัยจบ ไม่ตีพิมพ์ เก็บตามคำแนะนำของอาจารย์ที่ปรึกษา) ข้อความนี้จะถูกบันทึกในบันทึกระบบแทนเลข EC</p>` : ""}
       <div class="row" style="margin-top:8px;display:flex;gap:8px"><button class="btn primary small" type="button" id="phgo">ยืนยัน</button><button class="btn ghost small" type="button" id="phno">ยกเลิก</button></div></div>`;
     $("#phno").onclick = () => { box.innerHTML = ""; };
     $("#phgo").onclick = async () => {
-      const ec = to !== "test" ? $("#ecno").value.trim() : "";
-      if (to !== "test" && ec.length < 3) { toast("ใส่เลขที่หนังสือรับรอง EC ก่อน"); $("#ecno").focus(); return; }
+      const ec = to !== "test" ? NO_EC : "";
       $("#phgo").disabled = true;
       const j = await Auth.api("setPhase", { phase: to, ec });
       if (!j.ok) { $("#phgo").disabled = false; toast(j.error || "เปลี่ยนโหมดไม่สำเร็จ"); return; }
@@ -929,7 +930,7 @@
     t.textContent = msg; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 3800);
   }
 
-  window.__survey = { st, scores, record, makeCode };     // for testing
+  window.__survey = { st, scores, record, makeCode, render };     // for testing
   chips();
   readPhase();
   if (!DEMO && CONFIG.endpoint && outbox().length) flush();
