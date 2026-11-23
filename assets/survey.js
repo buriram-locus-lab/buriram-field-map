@@ -10,12 +10,12 @@
   /* Collection phase, set on the server by an admin (codes pilot / begin / test typed on this page) and read when the page opens:
      test  → records saved but marked test = 1 · pilot → field pilot (Stage 1.2), kept in separate sheets · live → main survey */
   let PHASE = (() => { try { const v = JSON.parse(localStorage.getItem("bfm.phase")); if (["test", "pilot", "live"].includes(v)) return v; } catch (e) {} return CONFIG.test ? "test" : "live"; })();
-  /* The Ban Muang (Chum Phae, Khon Kaen) pilot has its own page (survey/pilot/, window.PILOT_PAGE): same questions, but province / district / tambon / LGU are typed.
+  /* The pilot has its own page (survey/pilot/, window.PILOT_PAGE): same questions, but province / district / tambon / LGU are typed.
      Its records carry phase = "pilot"; the server keeps them only while the admin has switched the system to pilot. */
   const PILOT_PAGE = !!window.PILOT_PAGE;
   const isTestRun = () => PHASE === "test", isPilot = () => PILOT_PAGE;
   const PILOT_URL = new URL(PILOT_PAGE ? "./" : "pilot/", location.href).href;
-  const PH_LABEL = { test: "โหมดทดสอบระบบ", pilot: "โหมดนำร่อง (ขั้น 1.2 · บ้านม่วง อ.ชุมแพ จ.ขอนแก่น)", live: "เก็บข้อมูลจริง (ขั้น 1.3)" };
+  const PH_LABEL = { test: "โหมดทดสอบระบบ", pilot: "โหมดนำร่อง (ขั้น 1.2 · นอกพื้นที่บุรีรัมย์)", live: "เก็บข้อมูลจริง (ขั้น 1.3)" };
   const store = {
     get(k, d) { try { const v = localStorage.getItem("bfm." + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem("bfm." + k, JSON.stringify(v)); } catch (e) {} },
@@ -157,10 +157,10 @@
       case "residence": {
         const d = st.ans["3"] || {};
         if (isPilot()) {
-          if (!st.ans["3"]) st.ans["3"] = { p: "ขอนแก่น", a: "ชุมแพ", m: "บ้านม่วง" };
+          if (!st.ans["3"]) st.ans["3"] = {};
           const f = (k, label, ph, opt) => `<label class="fld"><span>${label}${opt ? " <em>(ไม่บังคับ)</em>" : ""}</span><input class="txt" name="pres_${k}" value="${esc(st.ans["3"][k] || "")}" placeholder="${ph}" autocomplete="off"></label>`;
-          return `<div class="grid2">${f("p", "จังหวัด", "ขอนแก่น")}${f("a", "อำเภอ", "ชุมแพ")}${f("t", "ตำบล", "พิมพ์ชื่อตำบล")}${f("m", "หมู่บ้านหรือชุมชน", "บ้านม่วง", true)}</div>
-            <p class="small muted">แบบสอบถามนำร่อง: พิมพ์ตามที่ผู้ตอบบอก ไม่ต้องตรงกับรายชื่อในบุรีรัมย์</p>`;
+          return `<div class="grid2">${f("p", "จังหวัด", "เช่น ขอนแก่น")}${f("a", "อำเภอ", "เช่น เมืองขอนแก่น")}${f("t", "ตำบล", "เช่น บ้านทุ่ม")}${f("m", "หมู่บ้านหรือชุมชน", "เช่น บ้านโนนม่วง", true)}</div>
+            <p class="small muted">แบบสอบถามนำร่อง: พิมพ์จังหวัด อำเภอ และตำบลที่ผู้ตอบอาศัยอยู่ตามที่ผู้ตอบบอก</p>`;
         }
         const ds = ["เมืองบุรีรัมย์", "สตึก", "บ้านด่าน", "แคนดง"];
         const tb = d.a ? S.tambons.filter(t => t.a === d.a) : [];
@@ -234,7 +234,7 @@
   function answered(it) {
     const v = st.ans[it.n];
     if (!visible(it)) return true;                                   // skipped by a rule
-    if (it.type === "residence") return !!(v && v.a && v.t);
+    if (it.type === "residence") return !!(v && v.a && v.t && (!isPilot() || v.p));
     if (it.type === "check") return Array.isArray(v) && v.length > 0;
     if (it.type === "year") return !!v && (+v !== 2551 || !!st.ans["1m"]);
     if (it.type === "income") return typeof v === "number" || st.ans["12b"] != null;
@@ -263,7 +263,7 @@
         <div><b>สิทธิของท่าน</b><p>ไม่ต้องบอกชื่อ ข้ามข้อที่ไม่สบายใจได้ และหยุดได้ทุกเมื่อ แบบสอบถามนี้ไม่ถามว่าท่านเลือกผู้สมัครหรือพรรคใด</p></div>
         <div><b>ข้อมูลของท่าน</b><p>ใช้วิเคราะห์ในภาพรวมเท่านั้น ไม่นำเสนอรายบุคคลหรือรายหมู่บ้าน</p></div>
       </div>
-      ${PILOT_PAGE ? `<div class="notice acc"><b>แบบสอบถามนำร่อง</b><br><span class="small">ใช้ทดสอบความเข้าใจคำถามและเวลาที่ใช้ เก็บที่บ้านม่วง อ.ชุมแพ จ.ขอนแก่น คำถามเหมือนฉบับจริงทุกข้อ ยกเว้นข้อ 3–4 ที่ให้พิมพ์จังหวัด อำเภอ ตำบล และ อปท. เอง คำตอบไม่นับเป็นข้อมูลวิจัยของบุรีรัมย์</span></div>` : ""}
+      ${PILOT_PAGE ? `<div class="notice acc"><b>แบบสอบถามนำร่อง</b><br><span class="small">ใช้ทดสอบความเข้าใจคำถามและเวลาที่ใช้ เก็บนอกพื้นที่บุรีรัมย์ได้ทุกที่ คำถามเหมือนฉบับจริงทุกข้อ ยกเว้นข้อ 3–4 ที่ให้พิมพ์จังหวัด อำเภอ ตำบล และ อปท. เอง คำตอบไม่นับเป็นข้อมูลวิจัยของบุรีรัมย์</span></div>` : ""}
       ${DEMO ? `<div class="notice"><b>โหมดตัวอย่าง:</b> หน้านี้ใช้ดูและทดลองแบบสอบถามเท่านั้น ระบบไม่ส่งหรือบันทึกคำตอบใด ๆ การเก็บข้อมูลจริงจะเปิดหลังคณะกรรมการจริยธรรมการวิจัยในมนุษย์ (EC) อนุมัติ</div>` : ""}
       ${!DEMO ? `<div class="notice ${isPilot() || PHASE === "pilot" ? "acc" : isTestRun() ? "" : "ok"}" id="phasebox">${phaseNote()}</div>` : ""}
       ${INV ? `<div class="notice acc" id="invbox">กำลังตรวจ QR…</div>` : ""}
@@ -577,7 +577,7 @@
       if (answered(it) || (it.type === "check" && Array.isArray(st.ans[it.n]))) continue;
       switch (it.type) {
         case "year": st.ans["1"] = 2500 + Math.floor(R() * 50); break;
-        case "residence": { if (isPilot()) { st.ans["3"] = { p: "ขอนแก่น", a: "ชุมแพ", t: "ทดสอบ", m: "บ้านม่วง" }; break; } const a = pick(["เมืองบุรีรัมย์", "สตึก", "บ้านด่าน", "แคนดง"]); st.ans["3"] = { a, t: pick(S.tambons.filter(t => t.a === a)).t }; break; }
+        case "residence": { if (isPilot()) { st.ans["3"] = { p: "ทดสอบ", a: "ทดสอบ", t: "ทดสอบ" }; break; } const a = pick(["เมืองบุรีรัมย์", "สตึก", "บ้านด่าน", "แคนดง"]); st.ans["3"] = { a, t: pick(S.tambons.filter(t => t.a === a)).t }; break; }
         case "lgu": { if (isPilot()) { st.ans["4"] = pick(["pilot:nk", "pilot:mg", "pilot:tb", "pilot:ao"]); break; } const d = st.ans["3"] || {}; const L = S.lgus.filter(l => l.d === d.a && (!d.t || l.t.includes(d.t))); st.ans["4"] = L.length ? pick(L).n : "unsure"; break; }
         case "num": st.ans[it.n] = 1 + Math.floor(R() * 6); break;
         case "income": if (R() < .7) st.ans["12"] = 3000 + Math.floor(R() * 40) * 1000; else st.ans["12b"] = 1 + Math.floor(R() * 9); break;
@@ -904,7 +904,7 @@
   /* ---------- phase: read from the server; changed by an admin with a code ---------- */
   function phaseNote() {
     if (PILOT_PAGE) {
-      if (PHASE === "pilot") return `<b>${PH_LABEL.pilot}</b><br><span class="small">เก็บที่บ้านม่วง อ.ชุมแพ จ.ขอนแก่น (16 ชุด) คำตอบแยกไว้ในชีตนำร่อง ไม่นำไปทดสอบสมมติฐาน และไม่ขอเบอร์โทรสำหรับระยะที่ 2 รหัสผู้ตอบขึ้นต้นด้วย P-</span>`;
+      if (PHASE === "pilot") return `<b>${PH_LABEL.pilot}</b><br><span class="small">ผู้ตอบพิมพ์จังหวัด อำเภอ และตำบลเอง คำตอบแยกไว้ในชีตนำร่อง ไม่นำไปทดสอบสมมติฐาน และไม่ขอเบอร์โทรสำหรับระยะที่ 2 รหัสผู้ตอบขึ้นต้นด้วย P-</span>`;
       if (PHASE === "test") return `<b>${PH_LABEL.test}</b><br><span class="small">ระบบยังไม่เปิดช่วงนำร่อง คำตอบจากหน้านี้จะบันทึกเป็นข้อมูลทดสอบ ผู้ดูแลต้องพิมพ์รหัส pilot ก่อนลงพื้นที่</span>`;
       return `<b>ระบบเปิดเก็บข้อมูลจริงอยู่</b><br><span class="small">หน้านำร่องส่งคำตอบไม่ได้ในช่วงนี้</span>`;
     }
@@ -927,7 +927,7 @@
     const se = Auth.get();
     if (!se || se.demo || se.user.role !== "admin") { box.innerHTML = `<p class="small err" role="alert">ต้องเข้าสู่ระบบด้วยบัญชีผู้ดูแล (admin) ก่อนจึงจะเปลี่ยนโหมดได้</p>`; return; }
     if (to === PHASE) { box.innerHTML = `<p class="small">ตอนนี้อยู่ใน${PH_LABEL[to]}อยู่แล้ว</p>`; return; }
-    const what = { pilot: `เปิดเก็บข้อมูล<b>นำร่อง</b> (ขั้น 1.2 ที่บ้านม่วง อ.ชุมแพ จ.ขอนแก่น 16 คน) ใช้หน้า <a href="${PILOT_URL}">แบบสอบถามนำร่อง</a> คำตอบจะเก็บแยกในชีต “คำตอบ (นำร่อง)”`, live: "เปิดเก็บข้อมูล<b>จริง</b> (ขั้น 1.3) คำตอบจะนับเป็นข้อมูลวิจัย และหยุดรับคำตอบนำร่อง", test: "กลับเป็น<b>โหมดทดสอบ</b> คำตอบจะบันทึกเป็นข้อมูลทดสอบ" }[to];
+    const what = { pilot: `เปิดเก็บข้อมูล<b>นำร่อง</b> (ขั้น 1.2 นอกพื้นที่บุรีรัมย์ ผู้ตอบกรอกที่อยู่เอง) ใช้หน้า <a href="${PILOT_URL}">แบบสอบถามนำร่อง</a> คำตอบจะเก็บแยกในชีต “คำตอบ (นำร่อง)”`, live: "เปิดเก็บข้อมูล<b>จริง</b> (ขั้น 1.3) คำตอบจะนับเป็นข้อมูลวิจัย และหยุดรับคำตอบนำร่อง", test: "กลับเป็น<b>โหมดทดสอบ</b> คำตอบจะบันทึกเป็นข้อมูลทดสอบ" }[to];
     box.innerHTML = `<div class="notice warn" style="margin-top:8px"><p>${what}</p>
       ${to !== "test" ? `<p class="small muted">โครงการนี้ไม่ได้ยื่น EC (วิจัยจบ ไม่ตีพิมพ์ เก็บตามคำแนะนำของอาจารย์ที่ปรึกษา) ข้อความนี้จะถูกบันทึกในบันทึกระบบแทนเลข EC</p>` : ""}
       <div class="row" style="margin-top:8px;display:flex;gap:8px"><button class="btn primary small" type="button" id="phgo">ยืนยัน</button><button class="btn ghost small" type="button" id="phno">ยกเลิก</button></div></div>`;
