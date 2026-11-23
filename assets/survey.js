@@ -14,7 +14,11 @@
      Its records carry phase = "pilot"; the server keeps them only while the admin has switched the system to pilot. */
   const PILOT_PAGE = !!window.PILOT_PAGE;
   const isTestRun = () => PHASE === "test", isPilot = () => PILOT_PAGE;
-  const PILOT_URL = new URL(PILOT_PAGE ? "./" : "pilot/", location.href).href;
+  const PILOT_URL = new URL(PILOT_PAGE ? "./" : "pilot/", location.href).href.split("?")[0];
+  /* Pilot only: a shareable link (?self=1) the respondent completes alone, with no collector (mode 2). The server takes these only while
+     the system is in pilot and files them under collector number 9, which no field collector uses. */
+  const SELF = PILOT_PAGE && new URLSearchParams(location.search).get("self") === "1";
+  const SELF_URL = PILOT_URL + "?self=1", SELF_ENUM = 9;
   const PH_LABEL = { test: "โหมดทดสอบระบบ", pilot: "โหมดนำร่อง (ขั้น 1.2 · นอกพื้นที่บุรีรัมย์)", live: "เก็บข้อมูลจริง (ขั้น 1.3)" };
   const store = {
     get(k, d) { try { const v = localStorage.getItem("bfm." + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -73,6 +77,7 @@
   const ALL = PARTS.flatMap(p => p.items);
   const itemOf = n => ALL.find(i => i.n === n);
   function visible(it) {
+    if (isPilot() && it.type === "phase2") return false;       // pilot respondents are not invited to Phase 2 (the server drops any phone number)
     const w = it.when; if (!w) return true;
     if (w.mode) return w.mode.includes(st.meta.mode);
     const v = st.ans[w.n];
@@ -267,7 +272,9 @@
       ${DEMO ? `<div class="notice"><b>โหมดตัวอย่าง:</b> หน้านี้ใช้ดูและทดลองแบบสอบถามเท่านั้น ระบบไม่ส่งหรือบันทึกคำตอบใด ๆ การเก็บข้อมูลจริงจะเปิดหลังคณะกรรมการจริยธรรมการวิจัยในมนุษย์ (EC) อนุมัติ</div>` : ""}
       ${!DEMO ? `<div class="notice ${isPilot() || PHASE === "pilot" ? "acc" : isTestRun() ? "" : "ok"}" id="phasebox">${phaseNote()}</div>` : ""}
       ${INV ? `<div class="notice acc" id="invbox">กำลังตรวจ QR…</div>` : ""}
-      <div class="admin" ${INV ? `style="display:none"` : ""}>
+      ${SELF ? `<div class="notice acc"><b>ตอบเองออนไลน์</b><br><span class="small">ตอบได้บนมือถือหรือคอมพิวเตอร์ ไม่มีผู้เก็บข้อมูลอยู่ด้วย ถ้าข้อไหนอ่านแล้วงง ตอบตามที่เข้าใจได้เลย แล้วบอกผู้วิจัยภายหลังว่าเป็นข้อไหน</span>
+        <label class="opt" style="margin-top:10px"><input type="checkbox" id="selfok"><span class="box" aria-hidden="true"></span><span class="ot">ข้าพเจ้าอ่านข้อความข้างบนแล้ว อายุ 18 ปีขึ้นไป และยินดีตอบแบบสอบถาม</span></label></div>` : ""}
+      <div class="admin" ${INV || SELF ? `style="display:none"` : ""}>
         <fieldset class="q"><legend class="qh"><span class="qt">วิธีตอบ</span></legend><div class="opts row">
           ${[[1, "ผู้เก็บข้อมูลอ่านให้ฟัง"], [0, "คีย์จากฟอร์มกระดาษ (ผู้ตอบกรอกเอง)"], [3, "ให้ผู้ตอบสแกน QR ทำในโทรศัพท์ตัวเอง ต่อหน้าผู้เก็บข้อมูล"]].map(([c, t]) => `<label class="opt"><input type="radio" name="mode" value="${c}" ${st.meta.mode === c ? "checked" : ""}><span class="box"></span><span class="ot">${t}</span></label>`).join("")}</div></fieldset>
         <fieldset class="q" id="venue-q"><legend class="qh"><span class="qt">สถานที่พบผู้ตอบ <em class="muted">(ผู้เก็บข้อมูลเลือก)</em></span></legend><div class="opts row">
@@ -282,7 +289,7 @@
       </div>
       <p class="consent" id="consent"></p>
       <div class="nav"><span></span><button class="btn primary" id="start">เริ่มตอบ</button></div>
-      ${!DEMO && !INV ? `<form class="phasecode" id="phaseform" autocomplete="off"><label class="fld"><span class="small muted">รหัสเปลี่ยนโหมด <em>(สำหรับผู้วิจัย)</em></span>
+      ${!DEMO && !INV && !SELF ? `<form class="phasecode" id="phaseform" autocomplete="off"><label class="fld"><span class="small muted">รหัสเปลี่ยนโหมด <em>(สำหรับผู้วิจัย)</em></span>
         <span class="inrow"><input class="txt short" id="phasecode" name="phasecode" autocapitalize="off" spellcheck="false" aria-describedby="phasehelp"><button class="btn ghost small" type="submit">ใช้รหัส</button></span></label>
         <p class="small muted" id="phasehelp">pilot = เปิดเก็บข้อมูลนำร่อง · begin = เปิดเก็บข้อมูลจริง · test = กลับเป็นโหมดทดสอบ ต้องเข้าสู่ระบบด้วยบัญชีผู้ดูแล</p><div id="phaseconfirm"></div></form>` : ""}
     </section>`;
@@ -301,6 +308,12 @@
     $("#start").onclick = () => {
       if (!DEMO && !PILOT_PAGE && PHASE === "pilot") { toast("ช่วงนำร่อง ใช้หน้าแบบสอบถามนำร่องแทน"); return; }
       if (!DEMO && PILOT_PAGE && PHASE === "live") { toast("ระบบเปิดเก็บข้อมูลจริงแล้ว หน้านำร่องปิดรับคำตอบ"); return; }
+      if (SELF) {
+        if (!DEMO && PHASE === "live") { toast("ปิดรับคำตอบแบบนำร่องแล้ว ขอบคุณที่สนใจ"); return; }
+        if (!$("#selfok").checked) { toast("ติ๊กยินยอมก่อนเริ่ม"); $("#selfok").focus(); return; }
+        st.meta.mode = 2; st.meta.venue = null; st.meta.enumerator = SELF_ENUM; st.meta.collector = ""; st.meta.cdate = todayISO();
+        st.meta.started = new Date().toISOString(); st.t0 = performance.now(); st.screen = "part"; st.part = 0; return render();
+      }
       if (INV) {
         if (!invInfo) { toast("QR นี้ใช้ไม่ได้ ขอ QR ใหม่จากผู้เก็บข้อมูล"); return; }
         st.meta.mode = 3; st.meta.venue = invInfo.venue || null; st.meta.enumerator = invInfo.enumerator; st.meta.cdate = todayISO();
@@ -904,7 +917,8 @@
   /* ---------- phase: read from the server; changed by an admin with a code ---------- */
   function phaseNote() {
     if (PILOT_PAGE) {
-      if (PHASE === "pilot") return `<b>${PH_LABEL.pilot}</b><br><span class="small">ผู้ตอบพิมพ์จังหวัด อำเภอ และตำบลเอง คำตอบแยกไว้ในชีตนำร่อง ไม่นำไปทดสอบสมมติฐาน และไม่ขอเบอร์โทรสำหรับระยะที่ 2 รหัสผู้ตอบขึ้นต้นด้วย P-</span>`;
+      if (SELF) return PHASE === "pilot" ? `<b>เปิดรับคำตอบ</b><br><span class="small">ใช้เวลาประมาณ 30–40 นาที</span>` : PHASE === "test" ? `<b>${PH_LABEL.test}</b><br><span class="small">ยังไม่เปิดรับคำตอบจริง คำตอบจะบันทึกเป็นข้อมูลทดสอบ</span>` : `<b>ปิดรับคำตอบแล้ว</b>`;
+      if (PHASE === "pilot") return `<b>${PH_LABEL.pilot}</b><br><span class="small">ลิงก์ให้ผู้ตอบทำเองทางไกล: <a href="${SELF_URL}">${esc(SELF_URL)}</a> (ส่งให้คนที่ยินยอมแล้วเท่านั้น)<br>ผู้ตอบพิมพ์จังหวัด อำเภอ และตำบลเอง คำตอบแยกไว้ในชีตนำร่อง ไม่นำไปทดสอบสมมติฐาน และไม่ขอเบอร์โทรสำหรับระยะที่ 2 รหัสผู้ตอบขึ้นต้นด้วย P-</span>`;
       if (PHASE === "test") return `<b>${PH_LABEL.test}</b><br><span class="small">ระบบยังไม่เปิดช่วงนำร่อง คำตอบจากหน้านี้จะบันทึกเป็นข้อมูลทดสอบ ผู้ดูแลต้องพิมพ์รหัส pilot ก่อนลงพื้นที่</span>`;
       return `<b>ระบบเปิดเก็บข้อมูลจริงอยู่</b><br><span class="small">หน้านำร่องส่งคำตอบไม่ได้ในช่วงนี้</span>`;
     }

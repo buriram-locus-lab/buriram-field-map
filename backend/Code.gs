@@ -1,7 +1,8 @@
 /* Survey back end on Google Apps Script + Google Sheets. One web app, called by the research website.
    Every request is a POST with a JSON body {action, token?, ...}. A body without action but with meta is a survey record (online answers).
    Script properties (Project Settings → Script properties):
-     PHASE     "test" | "pilot" | "live" — set by an admin from the survey page (codes pilot / begin / test), with the EC approval number.
+     PHASE     "test" | "pilot" | "live" — set by an admin from the survey page (codes pilot / begin / test). No EC review (undergraduate thesis,
+               advisor's instruction): the page sends a fixed note in place of an approval number.
                test: only test records are saved · pilot: field pilot (Stage 1.2) records go to the pilot sheets · live: main survey (Stage 1.3)
      ACCEPT    kept in step with PHASE ("1" only when live) for older pages
      DELETE_BY date by which phone numbers must be deleted, e.g. 2570-06-30
@@ -78,6 +79,14 @@ function validDate_(iso) {
   return iso;
 }
 
+/* Pilot self-complete link: filed under collector number 9 (no field collector uses it); at most 40 such records per hour, to stop a flood from a leaked link. */
+var ONLINE_ENUM = 9, ONLINE_PER_HOUR = 40;
+function throttleOnline_() {
+  var c = CacheService.getScriptCache(), k = "online:" + Utilities.formatDate(new Date(), TZ, "yyyyMMddHH"), n = +(c.get(k) || 0);
+  if (n >= ONLINE_PER_HOUR) throw new Error("มีผู้ส่งคำตอบออนไลน์มากเกินไปในชั่วโมงนี้ ลองใหม่ภายหลัง");
+  c.put(k, String(n + 1), 3700);
+}
+
 /** Saves one record. The respondent code is issued here, after the form is complete. */
 function apiSubmit_(body) {
   var rec = body.rec || body, m = rec.meta = rec.meta || {};
@@ -91,7 +100,11 @@ function apiSubmit_(body) {
     if (used && used !== String(m.id)) throw new Error("QR นี้ถูกใช้ตอบไปแล้ว หนึ่ง QR ใช้ได้หนึ่งคน");
     enumr = o.e; collector = o.u; cdate = todayISO_(); m.inv = o.i; m.venue = o.v;
   }
-  else if (mode === 2) throw new Error("ปิดการตอบออนไลน์ทางไกลแล้ว ทุกชุดต้องตอบต่อหน้าผู้เก็บข้อมูล");
+  else if (mode === 2) {                                // pilot only: respondent answers alone from the shared link
+    if (!isTest && !(pilot && ph === "pilot")) throw new Error("การตอบเองออนไลน์เปิดเฉพาะช่วงนำร่อง");
+    throttleOnline_();
+    enumr = ONLINE_ENUM; collector = "online"; cdate = todayISO_();
+  }
   else if (mode === 0 || mode === 1) { var u = auth_(body.token, "collector"); enumr = u.enumerator; collector = u.username; cdate = validDate_(m.cdate); }
   else throw new Error("ไม่ทราบวิธีตอบ");
   return saveRecord_(rec, enumr, collector, cdate, pilot);
