@@ -13,6 +13,7 @@
 
 var SHEETS = { responses: "คำตอบ", conjoint: "คู่ผู้สมัคร", contacts: "เบอร์ติดต่อ (ลบหลังสัมภาษณ์)", log: "บันทึกระบบ" };
 var PILOT_SHEETS = { responses: "คำตอบ (นำร่อง)", conjoint: "คู่ผู้สมัคร (นำร่อง)" };   // pilot answers never mix with the main data
+var CJ_HEADER = ["code", "test", "task", "pair", "item", "chosen_side", "chosen_name", "left_name", "right_name", "left_look", "right_look", "ms"];
 function phase_() { var p = props_(), v = p.getProperty("PHASE"); if (v === "pilot" || v === "live" || v === "test") return v; return p.getProperty("ACCEPT") === "1" ? "live" : "test"; }
 var RESP_HEADER = ["code", "rid", "collector", "inv", "received", "test", "flag", "json"];
 var CONTACT_HEADER = ["code", "phone", "best_time", "consented", "delete_by"];
@@ -32,7 +33,7 @@ function todayISO_() { return Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd")
 /** Run once from the editor: creates the sheets, the signing key, and the first admin account (password printed in the execution log). */
 function setup() {
   sheet_(SHEETS.responses, RESP_HEADER);
-  sheet_(SHEETS.conjoint, ["code", "test", "task", "pair", "item", "chosen_side", "chosen_name", "left_name", "right_name", "left_look", "right_look", "ms"]);
+  sheet_(SHEETS.conjoint, CJ_HEADER);
   sheet_(SHEETS.contacts, CONTACT_HEADER);
   sheet_(SHEETS.log, ["เวลา", "ผู้ใช้", "รายการ"]);
   usersSheet_();
@@ -135,7 +136,8 @@ function saveRecord_(rec, enumr, collector, cdate, pilot) {
   if (header.length > data[0].length) R.getRange(1, 1, 1, header.length).setValues([header]).setFontWeight("bold");
   R.appendRow(row);
 
-  var C = sheet_(SH.conjoint, ["code"]);
+  var C = sheet_(SH.conjoint, CJ_HEADER);
+  if (String(C.getRange(1, 2).getValue()) === "") C.getRange(1, 1, 1, CJ_HEADER.length).setValues([CJ_HEADER]).setFontWeight("bold");   // pilot sheets made before 28 Nov 2569 had only "code"
   (rec.conjoint || []).forEach(function (t) {
     var side = t.chosen === "L" ? t.left : t.chosen === "R" ? t.right : null;
     C.appendRow([code, isTest ? 1 : 0, t.task, t.pair, t.item || "", t.chosen || "", side ? side.name : "", t.left ? t.left.name : "", t.right ? t.right.name : "",
