@@ -273,7 +273,7 @@ dialog pre{font-family:var(--f-mono);font-size:.76rem;background:var(--sunk);bor
     $("#px").onclick = function (e) { var b = e.target.closest("button[data-w]"); if (!b) return;
       if (demo()) return msg("โหมดตัวอย่าง: ดาวน์โหลดได้เมื่อเชื่อมหลังบ้านแล้ว", true);
       b.disabled = true; api("exportCsv", { which: b.dataset.w, includeTest: $("#xt").checked }).then(function (j) { b.disabled = false; if (!j.ok) return fail(j);
-        var a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([j.csv], { type: "text/csv;charset=utf-8" })); a.download = j.name; a.click();
+        var a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["\ufeff" + j.csv], { type: "text/csv;charset=utf-8" })); a.download = j.name; a.click();
         if (!j.rows && j.testRows) msg("ไฟล์มีแต่หัวตาราง เพราะมีแต่ข้อมูลทดสอบ " + j.testRows + " แถว ติ๊ก “รวมข้อมูลทดสอบ” แล้วดาวน์โหลดใหม่", true);
         else if (!j.rows) msg("ไฟล์มีแต่หัวตาราง ยังไม่มีคำตอบในชีตนี้", true);
         else msg("ดาวน์โหลด " + j.rows + " แถว"); }); };
